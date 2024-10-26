@@ -113,7 +113,8 @@ set(PICOQUIC_LIBRARY_FILES
     picoquic/tls_api.c
     picoquic/transport.c
     picoquic/unified_log.c
-    picoquic/util.c)
+    picoquic/util.c
+    picoquic/hybla.c)
 
 set(PICOQUIC_CORE_HEADERS
      picoquic/picoquic.h
@@ -327,6 +328,7 @@ target_link_libraries(picoquic-core
     PRIVATE
         ${OPENSSL_LIBRARIES}
         ${MBEDTLS_LIBRARIES}
+        m
     PUBLIC
         ${PTLS_LIBRARIES}
         Threads::Threads)
