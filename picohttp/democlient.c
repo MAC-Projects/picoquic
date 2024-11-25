@@ -26,6 +26,7 @@
 #include "h3zero.h"
 #include "h3zero_common.h"
 #include "quicperf.h"
+#include "unibo_quicperf.h"
 #include "democlient.h"
 
 /* List of supported protocols 
@@ -50,7 +51,10 @@ static picoquic_alpn_list_t alpn_list[] = {
     { picoquic_alpn_http_0_9, "hq-28", 5 },
     { picoquic_alpn_http_3, "h3-27", 5 },
     { picoquic_alpn_http_0_9, "hq-27", 5 },
-    { picoquic_alpn_quicperf, QUICPERF_ALPN, QUICPERF_ALPN_LEN}
+    { picoquic_alpn_siduck, "siduck", 6 },
+    { picoquic_alpn_siduck, "siduck-00", 9 },
+    { picoquic_alpn_quicperf, QUICPERF_ALPN, QUICPERF_ALPN_LEN},
+    { picoquic_alpn_unibo_quicperf, UNIBO_QUICPERF_ALPN, UNIBO_QUICPERF_ALPN_LEN},
 };
 
 static size_t nb_alpn_list = sizeof(alpn_list) / sizeof(picoquic_alpn_list_t);
