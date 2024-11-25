@@ -30,6 +30,7 @@
 #include "demoserver.h"
 #include "siduck.h"
 #include "quicperf.h"
+#include "unibo_quicperf.h"
 /* The HTTP 0.9 server code is used for early test of the QUIC transport functions. 
  * The simple server provides simple responses, precanned index files or randomly
  * generated content */
@@ -620,6 +621,9 @@ int picoquic_demo_server_callback(picoquic_cnx_t* cnx,
         break;
     case picoquic_alpn_quicperf:
         ret = quicperf_callback(cnx, stream_id, bytes, length, fin_or_event, callback_ctx, v_stream_ctx);
+        break;
+    case picoquic_alpn_unibo_quicperf:
+        ret = unibo_quicperf_callback(cnx, stream_id, bytes, length, fin_or_event, callback_ctx, v_stream_ctx);
         break;
     case picoquic_alpn_http_0_9:
     default:

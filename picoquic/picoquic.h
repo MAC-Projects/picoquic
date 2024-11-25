@@ -1639,7 +1639,8 @@ typedef enum {
     picoquic_alpn_http_0_9,
     picoquic_alpn_http_3,
     picoquic_alpn_siduck,
-    picoquic_alpn_quicperf
+    picoquic_alpn_quicperf,
+    picoquic_alpn_unibo_quicperf
 } picoquic_alpn_enum;
 
 typedef struct st_picoquic_alpn_list_t {

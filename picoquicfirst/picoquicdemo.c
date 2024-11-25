@@ -75,6 +75,7 @@ static const char* token_store_filename = "demo_token_store.bin";
 #include "demoserver.h"
 #include "siduck.h"
 #include "quicperf.h"
+#include "unibo_quicperf.h"
 #include "picoquic_unified_log.h"
 #include "picoquic_logger.h"
 #include "picoquic_binlog.h"
@@ -411,6 +412,7 @@ typedef struct st_client_loop_cb_t {
     int zero_rtt_available;
     int is_siduck;
     int is_quicperf;
+    int is_unibo_quicperf;
     int socket_buffer_size;
     int multipath_probe_done;
     char const* saved_alpn;
@@ -532,7 +534,7 @@ int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
         }
         case picoquic_packet_loop_after_receive:
             /* Post receive callback */
-            if ((!cb_ctx->is_siduck && !cb_ctx->is_quicperf && cb_ctx->demo_callback_ctx->connection_closed) ||
+            if ((!cb_ctx->is_siduck && !cb_ctx->is_quicperf && !cb_ctx->is_unibo_quicperf && cb_ctx->demo_callback_ctx->connection_closed) ||
                 cb_ctx->cnx_client->cnx_state == picoquic_state_disconnected) {
                 fprintf(stdout, "The connection is closed!\n");
                 ret = PICOQUIC_NO_ERROR_TERMINATE_PACKET_LOOP;
@@ -731,7 +733,7 @@ int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
                     }
                 }
 
-                if (!cb_ctx->is_siduck && !cb_ctx->is_quicperf && cb_ctx->demo_callback_ctx->nb_open_streams == 0) {
+                if (!cb_ctx->is_siduck && !cb_ctx->is_quicperf && !cb_ctx->is_unibo_quicperf && cb_ctx->demo_callback_ctx->nb_open_streams == 0) {
                     fprintf(stdout, "All done, Closing the connection.\n");
                     picoquic_log_app_message(cb_ctx->cnx_client, "%s", "All done, Closing the connection.");
 
@@ -757,7 +759,7 @@ int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
                     cb_ctx->cnx_client->is_hcid_verified);
                 cb_ctx->established = 1;
 
-                if (!cb_ctx->zero_rtt_available && !cb_ctx->is_siduck && !cb_ctx->is_quicperf) {
+                if (!cb_ctx->zero_rtt_available && !cb_ctx->is_siduck && !cb_ctx->is_quicperf && !cb_ctx->is_unibo_quicperf) {
                     /* Start the download scenario */
                     ret = picoquic_demo_client_start_streams(cb_ctx->cnx_client, cb_ctx->demo_callback_ctx, PICOQUIC_DEMO_STREAM_ID_INITIAL);
                 }
@@ -798,6 +800,8 @@ int quic_client(const char* ip_address_text, int server_port,
     siduck_ctx_t* siduck_ctx = NULL;
     int is_quicperf = 0;
     quicperf_ctx_t* quicperf_ctx = NULL;
+    int is_unibo_quicperf = 0;
+    unibo_quicperf_ctx_t* unibo_quicperf_ctx = NULL;
     client_loop_cb_t loop_cb;
     picoquic_packet_loop_param_t param = { 0 };
     const char* sni = config->sni;
@@ -884,6 +888,16 @@ int quic_client(const char* ip_address_text, int server_port,
             }
             fprintf(stdout, "Getting ready to run QUICPERF\n");
         }
+        else if (config->alpn != NULL && strcmp(config->alpn, UNIBO_QUICPERF_ALPN) == 0) {
+            /* St an UNIBO_QUICPERF client*/
+            is_unibo_quicperf = 1;
+            unibo_quicperf_ctx = unibo_quicperf_create_ctx(client_scenario_text);
+            if (unibo_quicperf_ctx == NULL) {
+                fprintf(stdout, "Could not get ready to run UNIBO_QUICPERF\n");
+                return -1;
+            }
+            fprintf(stdout, "Getting ready to run UNIBO_QUICPERF\n");
+        }
         else {
             if (config->no_disk) {
                 fprintf(stdout, "Files not saved to disk (-D, no_disk)\n");
@@ -932,6 +946,9 @@ int quic_client(const char* ip_address_text, int server_port,
             else if (is_quicperf) {
                 picoquic_set_callback(cnx_client, quicperf_callback, quicperf_ctx);
             }
+            else if (is_unibo_quicperf) {
+                picoquic_set_callback(cnx_client, unibo_quicperf_callback, unibo_quicperf_ctx);
+            }
             else {
                 picoquic_set_callback(cnx_client, picoquic_demo_client_callback, &callback_ctx);
 
@@ -969,7 +986,7 @@ int quic_client(const char* ip_address_text, int server_port,
                     (int)cnx_client->remote_parameters.initial_max_stream_id_bidir);
             }
 
-            if (ret == 0 && !is_siduck && !is_quicperf) {
+            if (ret == 0 && !is_siduck && !is_quicperf && !is_unibo_quicperf) {
                 if (picoquic_is_0rtt_available(cnx_client) && (config->proposed_version & 0x0a0a0a0a) != 0x0a0a0a0a) {
                     loop_cb.zero_rtt_available = 1;
 
@@ -996,11 +1013,12 @@ int quic_client(const char* ip_address_text, int server_port,
         loop_cb.nb_packets_before_key_update = nb_packets_before_key_update;
         loop_cb.is_siduck = is_siduck;
         loop_cb.is_quicperf = is_quicperf;
+        loop_cb.is_unibo_quicperf = is_unibo_quicperf;
         loop_cb.socket_buffer_size = config->socket_buffer_size;
         if (is_siduck) {
             loop_cb.siduck_ctx = siduck_ctx;
         }
-        else if (!is_quicperf) {
+        else if (!is_quicperf && !is_unibo_quicperf) {
             loop_cb.demo_callback_ctx = &callback_ctx;
         }
 
@@ -1155,6 +1173,19 @@ int quic_client(const char* ip_address_text, int server_port,
                     picoquic_log_app_message(cnx_client, "Received %" PRIu64 " bytes in %f seconds, %f Mbps.",
                         picoquic_get_data_received(cnx_client), duration_usec, ((double)quicperf_ctx->data_received) * 8.0 / duration_usec);
                 }
+                else if (is_unibo_quicperf) {
+                    double duration_sec = duration_usec / 1000000.0;
+                    printf("Connection_duration_sec: %f\n", duration_sec);
+                    printf("Nb_transactions: %" PRIu64"\n", unibo_quicperf_ctx->nb_streams);
+                    printf("Upload_bytes: %" PRIu64"\n", unibo_quicperf_ctx->data_sent);
+                    printf("Download_bytes: %" PRIu64"\n", unibo_quicperf_ctx->data_received);
+                    printf("TPS: %f\n", ((double)unibo_quicperf_ctx->nb_streams) / duration_sec);
+                    printf("Upload_Mbps: %f\n", ((double)unibo_quicperf_ctx->data_sent) * 8.0 / duration_usec);
+                    printf("Download_Mbps: %f\n", ((double)unibo_quicperf_ctx->data_received) * 8.0 / duration_usec);
+
+                    picoquic_log_app_message(cnx_client, "Received %" PRIu64 " bytes in %f seconds, %f Mbps.",
+                        picoquic_get_data_received(cnx_client), duration_usec, ((double)unibo_quicperf_ctx->data_received) * 8.0 / duration_usec);
+                }
                 else {
                     double receive_rate_mbps = 8.0 * ((double)picoquic_get_data_received(cnx_client)) / duration_usec;
                     double send_rate_mbps = 8.0* ((double)picoquic_get_data_sent(cnx_client)) / duration_usec;
@@ -1223,9 +1254,15 @@ int quic_client(const char* ip_address_text, int server_port,
         if (quicperf_ctx != NULL) {
             quicperf_delete_ctx(quicperf_ctx);
         }
-    } else if (is_siduck) {
+    } 
+    else if (is_siduck) {
         if (siduck_ctx != NULL) {
             free(siduck_ctx);
+        }
+    }
+    else if (is_unibo_quicperf) {
+        if (unibo_quicperf_ctx != NULL) {
+            unibo_quicperf_delete_ctx(unibo_quicperf_ctx);
         }
     }
     else {

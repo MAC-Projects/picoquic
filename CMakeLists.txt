@@ -196,6 +196,7 @@ set(PICOHTTP_LIBRARY_FILES
     picohttp/h3zero_server.c
     picohttp/h3zero_uri.c
     picohttp/quicperf.c
+    picohttp/unibo_quicperf.c
     picohttp/siduck.c
     picohttp/webtransport.c
     picohttp/wt_baton.c)
