@@ -485,7 +485,7 @@ static int sample_client_init(char const* server_name, int server_port, char con
                 fprintf(stderr, "No token file present. Will create one as <%s>.\n", token_store_filename);
             }
 
-            picoquic_set_default_congestion_algorithm(*quic, picoquic_bbr_algorithm);
+            picoquic_set_default_congestion_algorithm(*quic, picoquic_hybla_algorithm);
 
             picoquic_set_key_log_file_from_env(*quic);
             picoquic_set_qlog(*quic, qlog_dir);

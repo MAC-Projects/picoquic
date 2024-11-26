@@ -33,7 +33,6 @@
 #include <errno.h>
 #endif
 
-
 /*
  * Supported versions. Specific versions may mandate different processing of different
  * formats.
@@ -4798,6 +4797,10 @@ picoquic_congestion_algorithm_t const* picoquic_get_congestion_algorithm(char co
         }
         else if (strcmp(alg_name, "bbr1") == 0) {
             alg = picoquic_bbr1_algorithm;
+        }
+        else if (strcmp(alg_name, "hybla") == 0) {
+            printf("HYBLA !!!\n");
+            alg = picoquic_hybla_algorithm;
         }
         else {
             alg = NULL;
