@@ -187,6 +187,21 @@ char const* unibo_quicperf_parse_duration(char const* text, int* is_signed, uint
         text = NULL;
     }
 
+    if (strncmp(text, "s", 1) == 0) {
+        *duration *= 1000000;
+        text += 1;
+    }
+    else if (strncmp(text, "ms", 2) == 0) {
+        *duration *= 1000;
+        text += 2;
+    }
+    else if (strncmp(text, "us", 2) == 0) {
+        text += 2;
+    }
+    else {
+        text = NULL;
+    }
+
     return text;
 }
 
@@ -220,7 +235,6 @@ char const* unibo_quicperf_parse_stream_desc(char const* text, uint64_t default_
     else if (desc->type == unibo_quicperf_time_oriented) {
         if (text != NULL) {
             text = unibo_quicperf_parse_duration(unibo_quicperf_parse_stream_spaces(text), 0, &desc->duration);
-            desc->duration *= 1000000; // convertion from seconds to microseconds
         }
     }
 

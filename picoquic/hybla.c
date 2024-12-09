@@ -102,7 +102,6 @@ static void picoquic_hybla_reset(picoquic_hybla_state_t* hybla_state, picoquic_p
 }
 
 static void picoquic_hybla_init(picoquic_cnx_t * cnx, picoquic_path_t* path_x, uint64_t current_time) {
-    printf("\t(hybla init)\n");
     
     /* Initialize the state of the congestion control algorithm */
     picoquic_hybla_state_t* hybla_state = (picoquic_hybla_state_t*)malloc(sizeof(picoquic_hybla_state_t));
@@ -127,7 +126,6 @@ static void picoquic_hybla_notify(
     picoquic_per_ack_state_t * ack_state,
     uint64_t current_time)
 {
-    printf("\t(hybla notify)\n");
 
     picoquic_hybla_state_t* hybla_state = (picoquic_hybla_state_t*)path_x->congestion_alg_state;
 
@@ -153,6 +151,7 @@ static void picoquic_hybla_notify(
                         
                         // NEW
                         double rho = path_x->smoothed_rtt / path_x->rtt_min;
+                        //double rho = path_x->smoothed_rtt / 25000000;
                         double increment_in_mss = pow(2.0, rho) - 1.0;
                         double increment = ack_state->nb_bytes_acknowledged * increment_in_mss;
                         int increment_int_part = floor(increment);
@@ -180,6 +179,8 @@ static void picoquic_hybla_notify(
 
                         // NEW
                         double rho = path_x->smoothed_rtt / path_x->rtt_min;
+                        //printf("%ld", path_x->rtt_min);
+                        //double rho = path_x->smoothed_rtt / 25000000;
                         uint64_t complete_delta = ack_state->nb_bytes_acknowledged * path_x->send_mtu;
                         double increment = rho * rho * complete_delta / hybla_state->cwin;
                         int increment_int_part = floor(increment);
@@ -297,7 +298,6 @@ static void picoquic_hybla_notify(
 
 /* Release the state of the congestion control algorithm */
 static void picoquic_hybla_delete(picoquic_path_t* path_x) {
-    printf("\t(hybla delete)\n");
     
     if (path_x->congestion_alg_state != NULL) {
         free(path_x->congestion_alg_state);
@@ -308,7 +308,6 @@ static void picoquic_hybla_delete(picoquic_path_t* path_x) {
 /* Observe the state of congestion control */
 
 void picoquic_hybla_observe(picoquic_path_t* path_x, uint64_t* cc_state, uint64_t* cc_param) {
-    printf("\t(hybla observe)\n");
 
     picoquic_hybla_state_t* hybla_state = (picoquic_hybla_state_t*)path_x->congestion_alg_state;
 

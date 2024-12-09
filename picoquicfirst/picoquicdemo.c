@@ -525,7 +525,7 @@ int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
         }
         case picoquic_packet_loop_after_receive:
             /* Post receive callback */
-            if ((!cb_ctx->is_siduck && !cb_ctx->is_quicperf && !cb_ctx->is_unibo_quicperf && cb_ctx->demo_callback_ctx->connection_closed) ||
+            if ((!cb_ctx->is_quicperf && !cb_ctx->is_unibo_quicperf && cb_ctx->demo_callback_ctx->connection_closed) ||
                 cb_ctx->cnx_client->cnx_state == picoquic_state_disconnected) {
                 fprintf(stdout, "The connection is closed!\n");
                 ret = PICOQUIC_NO_ERROR_TERMINATE_PACKET_LOOP;
@@ -724,7 +724,7 @@ int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
                     }
                 }
 
-                if (!cb_ctx->is_siduck && !cb_ctx->is_quicperf && !cb_ctx->is_unibo_quicperf && cb_ctx->demo_callback_ctx->nb_open_streams == 0) {
+                if (!cb_ctx->is_quicperf && !cb_ctx->is_unibo_quicperf && cb_ctx->demo_callback_ctx->nb_open_streams == 0) {
                     fprintf(stdout, "All done, Closing the connection.\n");
                     picoquic_log_app_message(cb_ctx->cnx_client, "%s", "All done, Closing the connection.");
 
@@ -750,7 +750,7 @@ int client_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb_mode,
                     cb_ctx->cnx_client->is_hcid_verified);
                 cb_ctx->established = 1;
 
-                if (!cb_ctx->zero_rtt_available && !cb_ctx->is_siduck && !cb_ctx->is_quicperf && !cb_ctx->is_unibo_quicperf) {
+                if (!cb_ctx->zero_rtt_available && !cb_ctx->is_quicperf && !cb_ctx->is_unibo_quicperf) {
                     /* Start the download scenario */
                     ret = picoquic_demo_client_start_streams(cb_ctx->cnx_client, cb_ctx->demo_callback_ctx, PICOQUIC_DEMO_STREAM_ID_INITIAL);
                 }
@@ -962,7 +962,7 @@ int quic_client(const char* ip_address_text, int server_port,
                     (int)cnx_client->remote_parameters.initial_max_stream_id_bidir);
             }
 
-            if (ret == 0 && !is_siduck && !is_quicperf && !is_unibo_quicperf) {
+            if (ret == 0 && !is_quicperf && !is_unibo_quicperf) {
                 if (picoquic_is_0rtt_available(cnx_client) && (config->proposed_version & 0x0a0a0a0a) != 0x0a0a0a0a) {
                     loop_cb.zero_rtt_available = 1;
 
@@ -990,10 +990,7 @@ int quic_client(const char* ip_address_text, int server_port,
         loop_cb.is_quicperf = is_quicperf;
         loop_cb.is_unibo_quicperf = is_unibo_quicperf;
         loop_cb.socket_buffer_size = config->socket_buffer_size;
-        if (is_siduck) {
-            loop_cb.siduck_ctx = siduck_ctx;
-        }
-        else if (!is_quicperf && !is_unibo_quicperf) {
+        if (!is_quicperf && !is_unibo_quicperf) {
             loop_cb.demo_callback_ctx = &callback_ctx;
         }
 
@@ -1233,11 +1230,6 @@ int quic_client(const char* ip_address_text, int server_port,
         if (quicperf_ctx != NULL) {
             quicperf_delete_ctx(quicperf_ctx);
         }
-    } 
-    else if (is_siduck) {
-        if (siduck_ctx != NULL) {
-            free(siduck_ctx);
-        }
     }
     else if (is_unibo_quicperf) {
         if (unibo_quicperf_ctx != NULL) {
@@ -1268,7 +1260,7 @@ void usage()
     fprintf(stderr, "  For the client mode, specify server_name and port.\n");
     fprintf(stderr, "  For the server mode, use -p to specify the port.\n");
     picoquic_config_usage();
-    fprintf(stderr, "Picoquic demo options:\n");
+    fprintf(stderr, "\nPicoquic demo options:\n");
     fprintf(stderr, "  -A \"ip/ifindex[,ip/ifindex]\"  IP and interface index for multipath alternative\n");
     fprintf(stderr, "                        path, e.g. \"10.0.0.2/3,10.0.0.3/4\". This option only\n");
     fprintf(stderr, "                        affects the behavior of the client.\n");
@@ -1281,7 +1273,9 @@ void usage()
     fprintf(stderr, "  -u nb                 trigger key update after receiving <nb> packets on client\n");
     fprintf(stderr, "  -1                    Once: close the server after processing 1 connection.\n");
 
-    fprintf(stderr, "\nThe scenario argument specifies the set of files that should be retrieved,\n");
+    fprintf(stderr, "\nScenarios can use different descriptions based on the ALPN.\n");
+    fprintf(stderr, "Basic ALPN:\n");
+    fprintf(stderr, "The scenario argument specifies the set of files that should be retrieved,\n");
     fprintf(stderr, "and their order. The syntax is:\n");
     fprintf(stderr, "  *{[<stream_id>':'[<previous_stream>':'[<format>:]]]path;}\n");
     fprintf(stderr, "where:\n");
@@ -1295,6 +1289,22 @@ void usage()
     fprintf(stderr, "  <path>:               The name of the document that should be retrieved\n");
     fprintf(stderr, "If no scenario is specified, the client executes the default scenario.\n");
 
+    fprintf(stderr, "\nUnibo quicperf ALPN:\n");
+    fprintf(stderr, "The scenario can either be data-oriented or time-oriented.\n");
+    fprintf(stderr, "The syntax for the scenario is:\n");
+    fprintf(stderr, "\t<connection_type> ':' *<repeat_count> ':' <stream_id> ':' <previous_stream_id> ':' <connection_details> ';'\n");
+    fprintf(stderr, "where:\n");
+    fprintf(stderr,"  <connection_type>:    can be either 'T' for time-oriented or 'D' for data-oriented.\n");
+    fprintf(stderr,"  <repeat_count>:       number of times that the scenario will be repeated.\n");
+    fprintf(stderr,"  <stream_id>:          numeric ID of the stream. It can be omitted by writing '-', in that\n");
+    fprintf(stderr,"                        case, it will follow the default QUIC order, e.g. 0, 4, 8, ...\n");
+    fprintf(stderr,"  <previous_stream_id>: numeric ID of the previous stream. The first scenario will have '-' here.\n");
+    fprintf(stderr,"  <connection_details>: this part differs based on the connection type:\n");
+    fprintf(stderr,"                        - time oriented: the last number will be a duration, which is a number followed by 's' for seconds,\n");
+    fprintf(stderr,"                          'ms' for milliseconds or 'us' for microseconds.\n");
+    fprintf(stderr,"                        - data oriented: two numbers are needed, separated with a ':'. The first one is the\n");
+    fprintf(stderr,"                          post size while the second one is the response size.\n");
+    fprintf(stderr,"Multiple scenarios can be specified by simply writing them separated by a ';'.\n");
     exit(1);
 }
 
