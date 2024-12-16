@@ -1503,6 +1503,8 @@ extern picoquic_congestion_algorithm_t* picoquic_prague_algorithm;
 extern picoquic_congestion_algorithm_t* picoquic_bbr1_algorithm;
 extern picoquic_congestion_algorithm_t* picoquic_hybla_algorithm;
 
+void picoquic_hybla_set_rtt0(int rtt0);
+
 #define PICOQUIC_DEFAULT_CONGESTION_ALGORITHM picoquic_newreno_algorithm;
 
 picoquic_congestion_algorithm_t const* picoquic_get_congestion_algorithm(char const* alg_name);
