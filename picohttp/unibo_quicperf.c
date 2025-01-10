@@ -421,6 +421,7 @@ int unibo_quicperf_init_streams_from_scenario(picoquic_cnx_t* cnx, unibo_quicper
                 else if (ctx->scenarios[i].type == unibo_quicperf_time_oriented) {
                     stream_ctx->duration = ctx->scenarios[i].duration;
                     stream_ctx->type = unibo_quicperf_time_oriented;
+                    stream_ctx->response_size = 0;
                     ctx->scenarios[i].is_infinite = 1;
                 }
 
@@ -576,6 +577,7 @@ int unibo_quicperf_prepare_to_send(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ct
             *buffer++ = stream_ctx->length_header[stream_ctx->nb_post_bytes++];
             available--;
         }
+        // questo potrebbe essere il problema della memoria
         memset(buffer, 0x30, available);
         if (ctx->is_client) {
             stream_ctx->nb_post_bytes += available;

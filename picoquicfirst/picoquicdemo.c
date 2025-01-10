@@ -125,6 +125,7 @@ static int server_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb
             fprintf(stdout, "Waiting for packets.\n");
             break;
         case picoquic_packet_loop_after_receive:
+            // fprintf(stdout, "Packet received.\n");
             break;
         case picoquic_packet_loop_after_send:
             break;
