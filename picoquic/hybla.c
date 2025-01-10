@@ -54,14 +54,24 @@ void picoquic_hybla_set_rtt0(int rtt0) {
     __picoquic_hybla_rtt0_param  = rtt0;
 }
 
+double get_rho(picoquic_hybla_state_t* hybla_state, picoquic_path_t* path_x) {
+    double rho = path_x->smoothed_rtt / (hybla_state->rtt0 * 1000);
+
+    if (rho < 1.0)
+        rho = 1.0;
+        
+    return rho;
+}
+
 static void picoquic_hybla_enter_recovery(
     picoquic_hybla_state_t* hybla_state,
     picoquic_cnx_t* cnx,
-    picoquic_path_t * path_x,
+    picoquic_path_t* path_x,
     picoquic_congestion_notification_t notification,
     uint64_t current_time)
 {
-    hybla_state->ssthresh = hybla_state->cwin / 2;
+    hybla_state->ssthresh = (hybla_state->cwin / 2) * get_rho(hybla_state, path_x);
+
     if (hybla_state->ssthresh < PICOQUIC_CWIN_MINIMUM) {
         hybla_state->ssthresh = PICOQUIC_CWIN_MINIMUM;
     }
@@ -85,8 +95,7 @@ static void picoquic_hybla_seed_cwin(
     picoquic_path_t* path_x,
     uint64_t bytes_in_flight) {
 
-    if (hybla_state->alg_state == picoquic_hybla_alg_slow_start &&
-        hybla_state->ssthresh == UINT64_MAX) {
+    if (hybla_state->alg_state == picoquic_hybla_alg_slow_start && hybla_state->ssthresh == UINT64_MAX) {
         if (bytes_in_flight > hybla_state->cwin) {
             hybla_state->cwin = bytes_in_flight;
             hybla_state->ssthresh = bytes_in_flight;
@@ -99,10 +108,12 @@ static void picoquic_hybla_reset(picoquic_hybla_state_t* hybla_state, picoquic_p
     memset(hybla_state, 0, sizeof(picoquic_hybla_state_t));
 
     hybla_state->alg_state = picoquic_hybla_alg_slow_start;
-    hybla_state->ssthresh = UINT64_MAX;
-    hybla_state->cwin = PICOQUIC_CWIN_INITIAL;
-
     hybla_state->rtt0 = __picoquic_hybla_rtt0_param;
+
+    double rho = get_rho(hybla_state, path_x);
+    hybla_state->ssthresh = UINT64_MAX * rho;
+    hybla_state->cwin = PICOQUIC_CWIN_INITIAL * rho;
+    
     //printf("picoquic_hybla_reset: setting Hybla RTT0 to %d\n", hybla_state->rtt0);
 
     path_x->cwin = hybla_state->cwin;
@@ -163,7 +174,9 @@ static void picoquic_hybla_notify(
                     case picoquic_hybla_alg_slow_start:
 
                         double rho = path_x->smoothed_rtt / (hybla_state->rtt0 * 1000);
-                        //printf("picoquic_hybla_notify (slow start): smoothed_rtt: %lu\n", path_x->smoothed_rtt);
+                    
+                        if (rho < 1.0)
+                            rho = 1.0;
 
                         double increment_in_mss = pow(2.0, rho) - 1.0;
                         double increment = ack_state->nb_bytes_acknowledged * increment_in_mss;
@@ -187,10 +200,15 @@ static void picoquic_hybla_notify(
                             hybla_state->alg_state = picoquic_hybla_alg_congestion_avoidance;
                         }
                         break;
+
                     case picoquic_hybla_alg_congestion_avoidance:
                     default: {
 
                         double rho = path_x->smoothed_rtt / (hybla_state->rtt0 * 1000);
+
+                        if (rho < 1.0)
+                            rho = 1.0;
+
                         //printf("picoquic_hybla_notify (congestion avoidance): smoothed_rtt: %lu\n", path_x->smoothed_rtt);
                         
                         uint64_t complete_delta = ack_state->nb_bytes_acknowledged * path_x->send_mtu;
@@ -285,7 +303,8 @@ static void picoquic_hybla_notify(
                     cnx->path[0]->pacing.packet_time_microsec, current_time,
                     cnx->is_time_stamp_enabled)) {
                     /* RTT increased too much, get out of slow start! */
-                    hybla_state->ssthresh = hybla_state->cwin;
+                
+                    hybla_state->ssthresh = hybla_state->cwin * get_rho(hybla_state, path_x);
                     hybla_state->alg_state = picoquic_hybla_alg_congestion_avoidance;
                     path_x->cwin = hybla_state->cwin;
                     path_x->is_ssthresh_initialized = 1;
