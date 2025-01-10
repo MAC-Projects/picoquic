@@ -1127,7 +1127,7 @@ int quic_client(const char* ip_address_text, int server_port,
             }
         }
 
-        if (picoquic_get_data_received(cnx_client) > 0 || is_quicperf) {
+        if (picoquic_get_data_received(cnx_client) > 0 || is_quicperf || is_unibo_quicperf) {
             uint64_t start_time = picoquic_get_cnx_start_time(cnx_client);
             uint64_t close_time = picoquic_get_quic_time(qclient);
             double duration_usec = (double)(close_time - start_time);
