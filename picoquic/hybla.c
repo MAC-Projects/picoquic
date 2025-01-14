@@ -63,9 +63,9 @@ void update_rho(picoquic_hybla_state_t* hybla_state, picoquic_path_t* path_x) {
 
     if (hybla_state->rho == 0 || new_rho < hybla_state->rho) {
         hybla_state->rho = new_rho;
-        
-        printf("\033[0;32m[Hybla] RTT estimate: %lu, RTT0 = %d, rho = %f\033[0m\n", 
-            path_x->smoothed_rtt, __picoquic_hybla_rtt0_param, hybla_state->rho);
+
+        printf("\033[0;32m[Hybla] RTT estimate = %lums, RTT0 = %dms, rho = %.3f\033[0m\n", 
+            path_x->smoothed_rtt/1000, __picoquic_hybla_rtt0_param, hybla_state->rho);
     }    
 }
 
@@ -167,12 +167,12 @@ static void picoquic_hybla_notify(
             if (hybla_state->alg_state == picoquic_hybla_alg_slow_start &&
                 hybla_state->ssthresh == UINT64_MAX) {
                 /* RTT measurements will happen before acknowledgement is signalled */
-                uint64_t max_win = path_x->peak_bandwidth_estimate * path_x->smoothed_rtt / 1000000;
-                uint64_t min_win = max_win /= 2;
-                if (hybla_state->cwin < min_win) {
-                    update_rho(hybla_state, path_x);
+                update_rho(hybla_state, path_x);
 
-                    hybla_state->cwin = min_win * hybla_state->rho;
+                uint64_t max_win = path_x->peak_bandwidth_estimate * path_x->smoothed_rtt / 1000000;
+                uint64_t min_win = (max_win / 2) * hybla_state->rho;
+                if (hybla_state->cwin < min_win) {
+                    hybla_state->cwin = min_win;
                     path_x->cwin = hybla_state->cwin;
                 }
             }
@@ -255,8 +255,7 @@ static void picoquic_hybla_notify(
                     /* If spurious repeat of initial loss detected,
                     * exit recovery and reset threshold to pre-entry cwin.
                     */
-                    if (hybla_state->ssthresh != UINT64_MAX &&
-                        hybla_state->cwin < 2 * hybla_state->ssthresh) {
+                    if (hybla_state->ssthresh != UINT64_MAX && hybla_state->cwin < 2 * hybla_state->ssthresh) {
                         hybla_state->cwin = 2 * hybla_state->ssthresh;
                         hybla_state->alg_state = picoquic_hybla_alg_congestion_avoidance;
                     }
@@ -268,8 +267,7 @@ static void picoquic_hybla_notify(
                     /* If spurious repeat of initial loss detected,
                     * exit recovery and reset threshold to pre-entry cwin.
                     */
-                    if (hybla_state->ssthresh != UINT64_MAX &&
-                        hybla_state->cwin < 2 * hybla_state->ssthresh) {
+                    if (hybla_state->ssthresh != UINT64_MAX && hybla_state->cwin < 2 * hybla_state->ssthresh) {
                         hybla_state->cwin = 2 * hybla_state->ssthresh;
                         hybla_state->alg_state = picoquic_hybla_alg_congestion_avoidance;
                     }
@@ -350,6 +348,10 @@ static void picoquic_hybla_notify(
 /* Release the state of the congestion control algorithm */
 static void picoquic_hybla_delete(picoquic_path_t* path_x) {
     //printf("\t(hybla delete)\n");
+
+    picoquic_hybla_state_t* hybla_state = path_x->congestion_alg_state;
+    printf("\033[0;32m[Hybla] Releasing state\n");
+    printf("\033[0;32m[Hybla] Final rho = %f\033[0m\n", hybla_state->rho);
     
     if (path_x->congestion_alg_state != NULL) {
         free(path_x->congestion_alg_state);
