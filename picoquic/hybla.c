@@ -165,8 +165,8 @@ static void picoquic_hybla_notify(
                 uint64_t max_win = path_x->peak_bandwidth_estimate * path_x->smoothed_rtt / 1000000;
                 uint64_t min_win = max_win /= 2;
                 if (hybla_state->cwin < min_win) {
-                    hybla_state->cwin = min_win;
-                    path_x->cwin = min_win * get_rho(hybla_state, path_x);
+                    hybla_state->cwin = min_win * get_rho(hybla_state, path_x);
+                    path_x->cwin = hybla_state->cwin;
                 }
             }
 
