@@ -4799,7 +4799,6 @@ picoquic_congestion_algorithm_t const* picoquic_get_congestion_algorithm(char co
             alg = picoquic_bbr1_algorithm;
         }
         else if (strcmp(alg_name, "hybla") == 0) {
-            printf("HYBLA !!!\n");
             alg = picoquic_hybla_algorithm;
         }
         else {

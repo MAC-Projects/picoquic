@@ -125,7 +125,6 @@ static int server_loop_cb(picoquic_quic_t* quic, picoquic_packet_loop_cb_enum cb
             fprintf(stdout, "Waiting for packets.\n");
             break;
         case picoquic_packet_loop_after_receive:
-            // fprintf(stdout, "Packet received.\n");
             break;
         case picoquic_packet_loop_after_send:
             break;
@@ -1154,8 +1153,8 @@ int quic_client(const char* ip_address_text, int server_port,
                     double duration_sec = duration_usec / 1000000.0;
                     printf("Connection_duration_sec: %f\n", duration_sec);
                     printf("Nb_transactions: %" PRIu64"\n", unibo_quicperf_ctx->nb_streams);
-                    printf("Upload_bytes: %" PRIu64"\n", unibo_quicperf_ctx->data_sent);
-                    printf("Download_bytes: %" PRIu64"\n", unibo_quicperf_ctx->data_received);
+                    printf("\e[0;32mUpload_bytes: %" PRIu64"\n", unibo_quicperf_ctx->data_sent);
+                    printf("Download_bytes: %" PRIu64"\e[0m\n", unibo_quicperf_ctx->data_received);
                     printf("TPS: %f\n", ((double)unibo_quicperf_ctx->nb_streams) / duration_sec);
                     printf("Upload_Mbps: %f\n", ((double)unibo_quicperf_ctx->data_sent) * 8.0 / duration_usec);
                     printf("Download_Mbps: %f\n", ((double)unibo_quicperf_ctx->data_received) * 8.0 / duration_usec);
