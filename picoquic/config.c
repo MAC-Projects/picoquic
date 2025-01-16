@@ -65,7 +65,7 @@ static option_table_line_t option_table[] = {
     { picoquic_option_SOLUTION_DIR, 'S', "solution_dir", 1, "folder", "Set the path to the source files to find the default files" },
     { picoquic_option_CC_ALGO, 'G', "cc_algo", 1, "cc_algorithm",
     "Use the specified congestion control algorithm: reno, cubic, bbr, fast or hybla. Defaults to bbr." },
-    { picoquic_option_HYBLA_RTT0, 'h', "rtt0", 1, "number", "Set RTT0 parameter for Hybla congestion control."},
+    { picoquic_option_HYBLA_RTT0, '0', "rtt0", 1, "number", "Set RTT0 parameter for Hybla congestion control."},
     { picoquic_option_SPINBIT, 'P', "spinbit", 1, "number", "Set the default spinbit policy" },
     { picoquic_option_LOSSBIT, 'O', "lossbit", 1, "number", "Set the default lossbit policy" },
     { picoquic_option_MULTIPATH, 'M', "multipath", 0, "", "Enable QUIC multipath extension" },
