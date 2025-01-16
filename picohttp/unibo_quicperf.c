@@ -1,5 +1,3 @@
-// For now just a copy of quicperf.c
-
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -267,6 +265,7 @@ int unibo_quicperf_parse_scenario_desc(char const* text, size_t* nb_streams, uni
         ret = -1;
     }
     else {
+        memset(*desc, 0, nb_desc * sizeof(unibo_quicperf_stream_desc_t));
         while (text != NULL) {
             text = unibo_quicperf_parse_stream_spaces(text);
             if (*text == 0) {
@@ -660,6 +659,9 @@ int unibo_quicperf_callback(picoquic_cnx_t* cnx,
         }
         break;
     case picoquic_callback_stream_reset: /* Server reset stream #x */
+        if (stream_ctx == NULL) {
+            stream_ctx = unibo_quicperf_find_stream_ctx(ctx, stream_id);
+        }
         picoquic_reset_stream(cnx, stream_id, 0);
         if (ctx->last_interaction_time - ctx->last_printed_info_time > 5000000) {
             unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_id);
