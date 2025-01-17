@@ -205,6 +205,7 @@ static void picoquic_hybla_notify(
 
                         /* if cnx->cwin exceeds SSTHRESH, exit and go to CA */
                         if (hybla_state->cwin >= hybla_state->ssthresh) {
+                            hybla_state->cwin = hybla_state->ssthresh;
                             hybla_state->alg_state = picoquic_hybla_alg_congestion_avoidance;
                         }
                         break;
