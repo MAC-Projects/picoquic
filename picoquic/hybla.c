@@ -56,12 +56,15 @@ void picoquic_hybla_set_rtt0(int rtt0) {
 }
 
 void update_rho(picoquic_hybla_state_t* hybla_state, picoquic_path_t* path_x) {
+    if (!path_x->rtt_is_initialized)
+        return;
+
     double new_rho = (double) path_x->smoothed_rtt / (__picoquic_hybla_rtt0_param * 1000);
     
     if (new_rho < 1.0)
         new_rho = 1.0;
 
-    if (hybla_state->rho == 0 || new_rho < hybla_state->rho) {
+    if (new_rho < hybla_state->rho) {
         hybla_state->rho = new_rho;
 
         printf("\033[0;32m[Hybla] RTT estimate = %lums, RTT0 = %dms, rho = %.3f\033[0m\n", 
@@ -165,14 +168,14 @@ static void picoquic_hybla_notify(
         case picoquic_congestion_notification_acknowledgement:
             //printf("picoquic_hybla_notify: RTT0 is %d\n", hybla_state->rtt0);
 
-            if (hybla_state->alg_state == picoquic_hybla_alg_slow_start &&
-                hybla_state->ssthresh == UINT64_MAX) {
+            if (hybla_state->alg_state == picoquic_hybla_alg_slow_start && hybla_state->ssthresh == UINT64_MAX) {
                 /* RTT measurements will happen before acknowledgement is signalled */
+
                 update_rho(hybla_state, path_x);
 
                 uint64_t max_win = path_x->peak_bandwidth_estimate * path_x->smoothed_rtt / 1000000;
-                //uint64_t min_win = (max_win / 2) * hybla_state->rho;
-                uint64_t min_win = (max_win / 2);
+                uint64_t min_win = (max_win / 2) * hybla_state->rho;
+                //uint64_t min_win = (max_win / 2);
                 if (hybla_state->cwin < min_win) {
                     hybla_state->cwin = min_win;
                     path_x->cwin = hybla_state->cwin;
@@ -251,12 +254,13 @@ static void picoquic_hybla_notify(
             }
             break;
         case picoquic_congestion_notification_spurious_repeat:
+            /*
             if (!cnx->is_multipath_enabled) {
                 if (current_time - hybla_state->recovery_start < path_x->smoothed_rtt &&
                     hybla_state->recovery_sequence > picoquic_cc_get_ack_number(cnx, path_x)) {
-                    /* If spurious repeat of initial loss detected,
-                    * exit recovery and reset threshold to pre-entry cwin.
-                    */
+                    //If spurious repeat of initial loss detected,
+                    //exit recovery and reset threshold to pre-entry cwin.
+                    
                     if (hybla_state->ssthresh != UINT64_MAX && hybla_state->cwin < 2 * hybla_state->ssthresh) {
                         hybla_state->cwin = 2 * hybla_state->ssthresh;
                         hybla_state->alg_state = picoquic_hybla_alg_congestion_avoidance;
@@ -266,9 +270,9 @@ static void picoquic_hybla_notify(
             else {
                 if (current_time - hybla_state->recovery_start < path_x->smoothed_rtt &&
                     hybla_state->recovery_start > picoquic_cc_get_ack_sent_time(cnx, path_x)) {
-                    /* If spurious repeat of initial loss detected,
-                    * exit recovery and reset threshold to pre-entry cwin.
-                    */
+                    //If spurious repeat of initial loss detected,
+                    //exit recovery and reset threshold to pre-entry cwin.
+                    
                     if (hybla_state->ssthresh != UINT64_MAX && hybla_state->cwin < 2 * hybla_state->ssthresh) {
                         hybla_state->cwin = 2 * hybla_state->ssthresh;
                         hybla_state->alg_state = picoquic_hybla_alg_congestion_avoidance;
@@ -277,6 +281,7 @@ static void picoquic_hybla_notify(
             }
             path_x->cwin = hybla_state->cwin;
             path_x->is_ssthresh_initialized = 1;
+            */
             break;
         case picoquic_congestion_notification_rtt_measurement:
             /* Using RTT increases as signal to get out of initial slow start */
