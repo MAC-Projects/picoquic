@@ -279,8 +279,8 @@ int unibo_quicperf_parse_scenario_desc(char const* text, size_t* nb_streams, uni
                 unibo_quicperf_stream_desc_t* stream_desc = &(*desc)[i];
                 text = unibo_quicperf_parse_stream_desc(text, stream_id, previous, stream_desc);
                 if (text != NULL) {
-                    stream_id = stream_desc->stream_id + 4;
-                    previous = stream_desc->stream_id;
+                    // stream_id = stream_desc->stream_id + 4;
+                    // previous = stream_desc->stream_id;
                     i++;
                 }
             }
@@ -435,6 +435,7 @@ int unibo_quicperf_init_streams_from_scenario(picoquic_cnx_t* cnx, unibo_quicper
                     }
                 }
                 ret = picoquic_mark_active_stream(cnx, stream_ctx->stream_id, 1, stream_ctx);
+                picoquic_set_stream_priority(cnx, stream_ctx->stream_id, 8);
                 stream_x += 4;
                 ctx->nb_open_streams++;
                 repeat_nb++;
@@ -535,6 +536,7 @@ int unibo_quicperf_process_stream_data(picoquic_cnx_t * cnx, unibo_quicperf_ctx_
                 stream_ctx->response_size = 0;
             }
             ret = picoquic_mark_active_stream(cnx, stream_ctx->stream_id, 1, stream_ctx);
+            picoquic_set_stream_priority(cnx, stream_ctx->stream_id, 8);
         }
     }
     else {
