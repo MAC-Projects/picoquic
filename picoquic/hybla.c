@@ -254,7 +254,7 @@ static void picoquic_hybla_notify(
             }
             break;
         case picoquic_congestion_notification_spurious_repeat:
-            /*
+            
             if (!cnx->is_multipath_enabled) {
                 if (current_time - hybla_state->recovery_start < path_x->smoothed_rtt &&
                     hybla_state->recovery_sequence > picoquic_cc_get_ack_number(cnx, path_x)) {
@@ -281,7 +281,7 @@ static void picoquic_hybla_notify(
             }
             path_x->cwin = hybla_state->cwin;
             path_x->is_ssthresh_initialized = 1;
-            */
+            
             break;
         case picoquic_congestion_notification_rtt_measurement:
             /* Using RTT increases as signal to get out of initial slow start */
@@ -348,7 +348,7 @@ static void picoquic_hybla_notify(
         picoquic_update_pacing_rate(
             cnx,
             path_x,
-            (double)hybla_state->cwin / ((double)path_x->smoothed_rtt / 1000000),
+            2.0 * (double)hybla_state->cwin / ((double)path_x->smoothed_rtt / 1000000),
             quantum
         );
     }
