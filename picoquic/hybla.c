@@ -328,14 +328,16 @@ static void picoquic_hybla_notify(
             hybla_state->alg_state == picoquic_hybla_alg_slow_start && hybla_state->ssthresh == UINT64_MAX
         );
         */
-       
+
         int quantum = hybla_state->cwin / 4;
         if (quantum < 2ull * path_x->send_mtu) {
             quantum = 2ull * path_x->send_mtu;
         }
+        /*
         else if (quantum > 16ull * path_x->send_mtu) {
             quantum = 16ull * path_x->send_mtu;
         }
+        */
         picoquic_update_pacing_rate(
             cnx,
             path_x,
