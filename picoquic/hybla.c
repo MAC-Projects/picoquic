@@ -64,7 +64,7 @@ void update_rho(picoquic_hybla_state_t* hybla_state, picoquic_path_t* path_x) {
     if (new_rho < 1.0)
         new_rho = 1.0;
 
-    if (new_rho < hybla_state->rho) {
+    if (hybla_state->rho == 0 || new_rho < hybla_state->rho) {
         hybla_state->rho = new_rho;
 
         printf("\033[0;32m[Hybla] RTT estimate = %lums, RTT0 = %dms, rho = %.3f\033[0m\n", 
@@ -281,7 +281,6 @@ static void picoquic_hybla_notify(
             }
             path_x->cwin = hybla_state->cwin;
             path_x->is_ssthresh_initialized = 1;
-            
             break;
         case picoquic_congestion_notification_rtt_measurement:
             /* Using RTT increases as signal to get out of initial slow start */
