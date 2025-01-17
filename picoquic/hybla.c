@@ -120,7 +120,8 @@ static void picoquic_hybla_reset(picoquic_hybla_state_t* hybla_state, picoquic_p
 
     update_rho(hybla_state, path_x);
     hybla_state->ssthresh = UINT64_MAX;
-    hybla_state->cwin = PICOQUIC_CWIN_INITIAL * hybla_state->rho;
+    //hybla_state->cwin = PICOQUIC_CWIN_INITIAL * hybla_state->rho;
+    hybla_state->cwin = PICOQUIC_CWIN_INITIAL;
     
     path_x->cwin = hybla_state->cwin;
 }
@@ -170,7 +171,8 @@ static void picoquic_hybla_notify(
                 update_rho(hybla_state, path_x);
 
                 uint64_t max_win = path_x->peak_bandwidth_estimate * path_x->smoothed_rtt / 1000000;
-                uint64_t min_win = (max_win / 2) * hybla_state->rho;
+                //uint64_t min_win = (max_win / 2) * hybla_state->rho;
+                uint64_t min_win = (max_win / 2);
                 if (hybla_state->cwin < min_win) {
                     hybla_state->cwin = min_win;
                     path_x->cwin = hybla_state->cwin;
