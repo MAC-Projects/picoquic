@@ -280,8 +280,8 @@ static void picoquic_hybla_notify(
             break;
         case picoquic_congestion_notification_rtt_measurement:
             /* Using RTT increases as signal to get out of initial slow start */
-            if (hybla_state->alg_state == picoquic_hybla_alg_slow_start &&
-                hybla_state->ssthresh == UINT64_MAX){
+            /*
+            if (hybla_state->alg_state == picoquic_hybla_alg_slow_start && hybla_state->ssthresh == UINT64_MAX){
 
                 if (path_x->rtt_min > PICOQUIC_TARGET_RENO_RTT) {
                     uint64_t min_win;
@@ -290,7 +290,7 @@ static void picoquic_hybla_notify(
                         min_win = (uint64_t)((double)PICOQUIC_CWIN_INITIAL * (double)PICOQUIC_TARGET_SATELLITE_RTT / (double)PICOQUIC_TARGET_RENO_RTT);
                     }
                     else {
-                        /* Increase initial CWIN for long delay links. */
+                        // Increase initial CWIN for long delay links.
                         min_win = (uint64_t)((double)PICOQUIC_CWIN_INITIAL * (double)path_x->rtt_min / (double)PICOQUIC_TARGET_RENO_RTT);
                     }
                     if (min_win > hybla_state->cwin) {
@@ -302,7 +302,7 @@ static void picoquic_hybla_notify(
                 if (picoquic_hystart_test(&hybla_state->rtt_filter, (cnx->is_time_stamp_enabled) ? ack_state->one_way_delay : ack_state->rtt_measurement,
                     cnx->path[0]->pacing.packet_time_microsec, current_time,
                     cnx->is_time_stamp_enabled)) {
-                    /* RTT increased too much, get out of slow start! */
+                    // RTT increased too much, get out of slow start!
                 
                     hybla_state->ssthresh = hybla_state->cwin;
                     hybla_state->alg_state = picoquic_hybla_alg_congestion_avoidance;
@@ -310,6 +310,7 @@ static void picoquic_hybla_notify(
                     path_x->is_ssthresh_initialized = 1;
                 }
             }
+            */
             break;
         case picoquic_congestion_notification_cwin_blocked:
             break;
