@@ -45,6 +45,8 @@ typedef struct st_picoquic_hybla_state_t {
     int rtt0;
     
     double rho;
+    int rho_is_initialized;
+
     double increment_frac_sum;
 
     picoquic_min_max_rtt_t rtt_filter;
@@ -64,8 +66,9 @@ void update_rho(picoquic_hybla_state_t* hybla_state, picoquic_path_t* path_x) {
     if (new_rho < 1.0)
         new_rho = 1.0;
 
-    if (hybla_state->rho == 0 || new_rho < hybla_state->rho) {
+    if (!hybla_state->rho_is_initialized || new_rho < hybla_state->rho) {
         hybla_state->rho = new_rho;
+        hybla_state->rho_is_initialized = 1;
 
         printf("\033[0;32m[Hybla] RTT estimate = %lums, RTT0 = %dms, rho = %.3f\033[0m\n", 
             path_x->smoothed_rtt/1000, __picoquic_hybla_rtt0_param, hybla_state->rho);
@@ -79,14 +82,16 @@ static void picoquic_hybla_enter_recovery(
     picoquic_congestion_notification_t notification,
     uint64_t current_time)
 {
+    update_rho(hybla_state, path_x);
+
     hybla_state->ssthresh = (hybla_state->cwin / 2);
 
-    if (hybla_state->ssthresh < PICOQUIC_CWIN_MINIMUM) {
-        hybla_state->ssthresh = PICOQUIC_CWIN_MINIMUM;
+    if (hybla_state->ssthresh < PICOQUIC_CWIN_MINIMUM * hybla_state->rho) {
+        hybla_state->ssthresh = PICOQUIC_CWIN_MINIMUM * hybla_state->rho;
     }
 
     if (notification == picoquic_congestion_notification_timeout) {
-        hybla_state->cwin = PICOQUIC_CWIN_MINIMUM;
+        hybla_state->cwin = PICOQUIC_CWIN_MINIMUM * hybla_state->rho;
         hybla_state->alg_state = picoquic_hybla_alg_slow_start;
     }
     else {
@@ -120,28 +125,22 @@ static void picoquic_hybla_reset(picoquic_hybla_state_t* hybla_state, picoquic_p
 
     hybla_state->alg_state = picoquic_hybla_alg_slow_start;
     hybla_state->rtt0 = __picoquic_hybla_rtt0_param;
-
-    update_rho(hybla_state, path_x);
+    hybla_state->rho = 1.0;
+    
     hybla_state->ssthresh = UINT64_MAX;
-    //hybla_state->cwin = PICOQUIC_CWIN_INITIAL * hybla_state->rho;
     hybla_state->cwin = PICOQUIC_CWIN_INITIAL;
     
     path_x->cwin = hybla_state->cwin;
 }
 
 static void picoquic_hybla_init(picoquic_cnx_t * cnx, picoquic_path_t* path_x, uint64_t current_time) {
-    //printf("\t(hybla init)\n");
-    
     /* Initialize the state of the congestion control algorithm */
     picoquic_hybla_state_t* hybla_state = (picoquic_hybla_state_t*)malloc(sizeof(picoquic_hybla_state_t));
     
-    hybla_state->rtt0 = __picoquic_hybla_rtt0_param;
-    //printf("picoquic_hybla_init: setting Hybla RTT0 to %d\n", hybla_state->rtt0);
-
     #ifdef _WINDOWS
     UNREFERENCED_PARAMETER(current_time);
     UNREFERENCED_PARAMETER(cnx);
-#endif
+    #endif
 
     if (hybla_state != NULL) {
         picoquic_hybla_reset(hybla_state, path_x);
@@ -166,7 +165,6 @@ static void picoquic_hybla_notify(
     if (hybla_state != NULL) {
         switch (notification) {
         case picoquic_congestion_notification_acknowledgement:
-            //printf("picoquic_hybla_notify: RTT0 is %d\n", hybla_state->rtt0);
 
             if (hybla_state->alg_state == picoquic_hybla_alg_slow_start && hybla_state->ssthresh == UINT64_MAX) {
                 /* RTT measurements will happen before acknowledgement is signalled */
@@ -254,7 +252,6 @@ static void picoquic_hybla_notify(
             }
             break;
         case picoquic_congestion_notification_spurious_repeat:
-            
             if (!cnx->is_multipath_enabled) {
                 if (current_time - hybla_state->recovery_start < path_x->smoothed_rtt &&
                     hybla_state->recovery_sequence > picoquic_cc_get_ack_number(cnx, path_x)) {
@@ -281,6 +278,7 @@ static void picoquic_hybla_notify(
             }
             path_x->cwin = hybla_state->cwin;
             path_x->is_ssthresh_initialized = 1;
+
             break;
         case picoquic_congestion_notification_rtt_measurement:
             /* Using RTT increases as signal to get out of initial slow start */
@@ -347,7 +345,7 @@ static void picoquic_hybla_notify(
         picoquic_update_pacing_rate(
             cnx,
             path_x,
-            2.0 * (double)hybla_state->cwin / ((double)path_x->smoothed_rtt / 1000000),
+            (double)hybla_state->cwin / ((double)path_x->rtt_min / 1000000),
             quantum
         );
     }
