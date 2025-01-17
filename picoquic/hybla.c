@@ -168,7 +168,7 @@ static void picoquic_hybla_notify(
 
             if (hybla_state->alg_state == picoquic_hybla_alg_slow_start && hybla_state->ssthresh == UINT64_MAX) {
                 /* RTT measurements will happen before acknowledgement is signalled */
-
+                /*
                 update_rho(hybla_state, path_x);
 
                 uint64_t max_win = path_x->peak_bandwidth_estimate * path_x->smoothed_rtt / 1000000;
@@ -178,6 +178,7 @@ static void picoquic_hybla_notify(
                     hybla_state->cwin = min_win;
                     path_x->cwin = hybla_state->cwin;
                 }
+                */
             }
 
             if (path_x->last_time_acked_data_frame_sent > path_x->last_sender_limited_time) {
@@ -281,6 +282,13 @@ static void picoquic_hybla_notify(
 
             break;
         case picoquic_congestion_notification_rtt_measurement:
+            if (hybla_state->alg_state == picoquic_hybla_alg_slow_start && hybla_state->ssthresh == UINT64_MAX) {
+
+                update_rho(hybla_state, path_x);
+
+                hybla_state->cwin = PICOQUIC_CWIN_INITIAL * hybla_state->rho;
+                path_x->cwin = hybla_state->cwin;
+            }
             /* Using RTT increases as signal to get out of initial slow start */
             /*
             if (hybla_state->alg_state == picoquic_hybla_alg_slow_start && hybla_state->ssthresh == UINT64_MAX){
