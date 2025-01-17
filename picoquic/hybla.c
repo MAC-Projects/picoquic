@@ -205,7 +205,6 @@ static void picoquic_hybla_notify(
 
                         /* if cnx->cwin exceeds SSTHRESH, exit and go to CA */
                         if (hybla_state->cwin >= hybla_state->ssthresh) {
-                            hybla_state->cwin = hybla_state->ssthresh;
                             hybla_state->alg_state = picoquic_hybla_alg_congestion_avoidance;
                         }
                         break;
@@ -283,7 +282,7 @@ static void picoquic_hybla_notify(
             break;
         case picoquic_congestion_notification_rtt_measurement:
             /* Using RTT increases as signal to get out of initial slow start */
-            /*
+            
             if (hybla_state->alg_state == picoquic_hybla_alg_slow_start && hybla_state->ssthresh == UINT64_MAX){
 
                 if (path_x->rtt_min > PICOQUIC_TARGET_RENO_RTT) {
@@ -313,7 +312,7 @@ static void picoquic_hybla_notify(
                     path_x->is_ssthresh_initialized = 1;
                 }
             }
-            */
+            
             break;
         case picoquic_congestion_notification_cwin_blocked:
             break;
