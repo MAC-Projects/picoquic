@@ -804,7 +804,9 @@ picoquic_quic_t* picoquic_create_and_configure(picoquic_quic_config_t* config,
         }
 
         picoquic_set_default_congestion_algorithm(quic, cc_algo);
-        fprintf(stdout, "Congestion control algorithm set to: %s\n", config->cc_algo_id);
+        if (config->cc_algo_id != NULL) {
+            fprintf(stdout, "Congestion control algorithm set to: %s\n", config->cc_algo_id);
+        }
 
         picoquic_set_default_spinbit_policy(quic, config->spinbit_policy);
         picoquic_set_default_lossbit_policy(quic, config->lossbit_policy);

@@ -2957,9 +2957,11 @@ void picoquic_stream_data_node_recycle(picoquic_stream_data_node_t* stream_data)
         stream_data->next_stream_data = stream_data->quic->p_first_data_node;
         stream_data->quic->p_first_data_node = stream_data;
         stream_data->quic->nb_data_nodes_in_pool++;
+        //printf("pool: %d, allocated: %d\n", stream_data->quic->nb_data_nodes_in_pool, stream_data->quic->nb_data_nodes_allocated);
     }
     else {
         stream_data->quic->nb_data_nodes_allocated--;
+        //printf("FUORI\n");
         free(stream_data);
     }
 }
