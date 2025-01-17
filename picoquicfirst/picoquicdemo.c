@@ -1126,7 +1126,7 @@ int quic_client(const char* ip_address_text, int server_port,
             }
         }
 
-        if (picoquic_get_data_received(cnx_client) > 0 || is_quicperf) {
+        if (picoquic_get_data_received(cnx_client) > 0 || is_quicperf || is_unibo_quicperf) {
             uint64_t start_time = picoquic_get_cnx_start_time(cnx_client);
             uint64_t close_time = picoquic_get_quic_time(qclient);
             double duration_usec = (double)(close_time - start_time);
@@ -1153,8 +1153,8 @@ int quic_client(const char* ip_address_text, int server_port,
                     double duration_sec = duration_usec / 1000000.0;
                     printf("Connection_duration_sec: %f\n", duration_sec);
                     printf("Nb_transactions: %" PRIu64"\n", unibo_quicperf_ctx->nb_streams);
-                    printf("Upload_bytes: %" PRIu64"\n", unibo_quicperf_ctx->data_sent);
-                    printf("Download_bytes: %" PRIu64"\n", unibo_quicperf_ctx->data_received);
+                    printf("\e[0;32mUpload_bytes: %" PRIu64"\n", unibo_quicperf_ctx->data_sent);
+                    printf("Download_bytes: %" PRIu64"\e[0m\n", unibo_quicperf_ctx->data_received);
                     printf("TPS: %f\n", ((double)unibo_quicperf_ctx->nb_streams) / duration_sec);
                     printf("Upload_Mbps: %f\n", ((double)unibo_quicperf_ctx->data_sent) * 8.0 / duration_usec);
                     printf("Download_Mbps: %f\n", ((double)unibo_quicperf_ctx->data_received) * 8.0 / duration_usec);

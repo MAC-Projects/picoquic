@@ -59,6 +59,7 @@ typedef struct st_unibo_quicperf_ctx_t {
     size_t nb_scenarios;
     size_t nb_open_streams;
     uint64_t last_interaction_time;
+    uint64_t last_printed_info_time;
     unibo_quicperf_stream_desc_t* scenarios;
     picosplay_tree_t unibo_quicperf_stream_tree;
     /* Statistics gathered on client */
