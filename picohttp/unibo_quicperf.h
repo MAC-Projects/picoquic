@@ -51,6 +51,7 @@ typedef struct st_unibo_quicperf_stream_ctx {
     int is_closed;
     unibo_quicperf_cnx_type_t type; /* type of the connection*/
     uint64_t duration; /* duration of the connection in seconds */
+    uint64_t last_printed_info_time;
 } unibo_quicperf_stream_ctx_t;
 
 typedef struct st_unibo_quicperf_ctx_t {
@@ -58,8 +59,7 @@ typedef struct st_unibo_quicperf_ctx_t {
     int progress_observed;
     size_t nb_scenarios;
     size_t nb_open_streams;
-    uint64_t last_interaction_time;
-    uint64_t last_printed_info_time;
+    uint64_t last_printed_aggr_info_time;
     unibo_quicperf_stream_desc_t* scenarios;
     picosplay_tree_t unibo_quicperf_stream_tree;
     /* Statistics gathered on client */

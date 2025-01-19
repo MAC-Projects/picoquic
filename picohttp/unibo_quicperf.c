@@ -8,6 +8,10 @@
 #include "picosplay.h"
 #include "unibo_quicperf.h"
 
+void unibo_quicperf_print_info(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ctx, unibo_quicperf_stream_ctx_t* stream_ctx,
+    uint64_t stream_id, int is_fin, uint64_t current_time);
+void unibo_quicperf_print_aggr_info(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ctx, int is_fin, uint64_t current_time);
+
 /* management of scenarios by the quicperf client 
  */
 
@@ -435,6 +439,10 @@ int unibo_quicperf_init_streams_from_scenario(picoquic_cnx_t* cnx, unibo_quicper
                     }
                 }
                 ret = picoquic_mark_active_stream(cnx, stream_ctx->stream_id, 1, stream_ctx);
+                // initialization for printing info
+                stream_ctx->last_printed_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
+                // activation time (client)
+                stream_ctx->post_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
                 picoquic_set_stream_priority(cnx, stream_ctx->stream_id, 8);
                 stream_x += 4;
                 ctx->nb_open_streams++;
@@ -447,7 +455,7 @@ int unibo_quicperf_init_streams_from_scenario(picoquic_cnx_t* cnx, unibo_quicper
 }
 
 int unibo_quicperf_process_stream_data(picoquic_cnx_t * cnx, unibo_quicperf_ctx_t * ctx, unibo_quicperf_stream_ctx_t* stream_ctx,
-    uint64_t stream_id, uint8_t* bytes, size_t length, picoquic_call_back_event_t fin_or_event)
+    uint64_t stream_id, uint8_t* bytes, size_t length, picoquic_call_back_event_t fin_or_event, uint64_t current_time)
 {
     int ret = 0;
 
@@ -467,6 +475,10 @@ int unibo_quicperf_process_stream_data(picoquic_cnx_t * cnx, unibo_quicperf_ctx_
     }
     else if (ctx->is_client) {
         if (!stream_ctx->is_closed) {
+            if (stream_ctx->nb_response_bytes == 0) {
+                // first byte received (client)
+                stream_ctx->response_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
+            }
             stream_ctx->nb_response_bytes += length;
             ctx->data_received += length;
 
@@ -479,7 +491,7 @@ int unibo_quicperf_process_stream_data(picoquic_cnx_t * cnx, unibo_quicperf_ctx_
                         stream_ctx->is_closed = 1;
                     }
                 }
-                else if (stream_ctx->type == unibo_quicperf_time_oriented && (ctx->last_interaction_time - picoquic_get_cnx_start_time(cnx) >= stream_ctx->duration)) {
+                else if (stream_ctx->type == unibo_quicperf_time_oriented && (current_time - stream_ctx->post_time >= stream_ctx->duration)) {
                         ret = picoquic_stop_sending(cnx, stream_ctx->stream_id, 0);
                         stream_ctx->is_stopped = 1;
                         stream_ctx->is_closed = 1;
@@ -502,6 +514,8 @@ int unibo_quicperf_process_stream_data(picoquic_cnx_t * cnx, unibo_quicperf_ctx_
             }
 
             if (stream_ctx->is_closed || fin_or_event == picoquic_callback_stream_fin) {
+                // last byte received (client)
+                stream_ctx->response_fin_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
                 ctx->nb_streams++;
             }
 
@@ -521,6 +535,11 @@ int unibo_quicperf_process_stream_data(picoquic_cnx_t * cnx, unibo_quicperf_ctx_
         }
     }
     else if (!stream_ctx->is_closed) {
+        if (stream_ctx->last_printed_info_time == 0) { // first time the server receives something
+            stream_ctx->last_printed_info_time = current_time;
+            // first byte received (server)
+            stream_ctx->post_time = current_time;
+        }
         /* Accumulate the first 8 bytes */
         
         size_t byte_index = 0;
@@ -530,12 +549,15 @@ int unibo_quicperf_process_stream_data(picoquic_cnx_t * cnx, unibo_quicperf_ctx_
             stream_ctx->nb_post_bytes++;
         }
         stream_ctx->nb_post_bytes += (length - byte_index);
+        ctx->data_received += length;
 
         if (fin_or_event == picoquic_callback_stream_fin) {
             if (stream_ctx->nb_post_bytes < 8) {
                 stream_ctx->response_size = 0;
             }
             ret = picoquic_mark_active_stream(cnx, stream_ctx->stream_id, 1, stream_ctx);
+            // activation time (server) - also time first byte sent
+            stream_ctx->response_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
             picoquic_set_stream_priority(cnx, stream_ctx->stream_id, 8);
         }
     }
@@ -543,11 +565,25 @@ int unibo_quicperf_process_stream_data(picoquic_cnx_t * cnx, unibo_quicperf_ctx_
         /* Should never happen */
         ret = picoquic_close(cnx, UNIBO_QUICPERF_ERROR_TOO_MUCH_DATA_SENT);
     }
+
+    if (current_time - stream_ctx->last_printed_info_time >= 5000000) {
+        unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_id, 0, current_time);
+        stream_ctx->last_printed_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
+    }
+    // print aggregated info of all streams
+    if (current_time - ctx->last_printed_aggr_info_time >= 5000000) {
+        unibo_quicperf_print_aggr_info(cnx, ctx, 0, current_time);
+        ctx->last_printed_aggr_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
+    }
+    if (ctx->is_client && fin_or_event == picoquic_callback_stream_fin) {
+        unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_id, 1, current_time);
+    }
+
     return ret;
 }
 
 int unibo_quicperf_prepare_to_send(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ctx, unibo_quicperf_stream_ctx_t* stream_ctx,
-    uint8_t* context, size_t length)
+    uint8_t* context, size_t length, uint64_t current_time)
 {
 
     int ret = 0;
@@ -565,14 +601,14 @@ int unibo_quicperf_prepare_to_send(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ct
         is_fin = 1;
         available = (size_t)(send_limit - sent_already);
     }
-    else if (stream_ctx->type == unibo_quicperf_time_oriented && ctx->is_client && (ctx->last_interaction_time - picoquic_get_cnx_start_time(cnx) >= stream_ctx->duration)) {
+    else if (stream_ctx->type == unibo_quicperf_time_oriented && ctx->is_client && (current_time - stream_ctx->post_time >= stream_ctx->duration)) {
         is_fin = 1;
         available = 0;
     }
-    if (ctx->is_client) {
-        ctx->data_sent += available;
-    }
+
+    ctx->data_sent += available;
     buffer = picoquic_provide_stream_data_buffer(context, available, is_fin, !is_fin);
+
     if (buffer != NULL) {
         while (ctx->is_client && stream_ctx->nb_post_bytes < 8 && available > 0) {
             *buffer++ = stream_ctx->length_header[stream_ctx->nb_post_bytes++];
@@ -585,28 +621,77 @@ int unibo_quicperf_prepare_to_send(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ct
         else {
             stream_ctx->nb_response_bytes += available;
         }
+        if (is_fin && ctx->is_client) {
+            // last byte sent (client)
+            stream_ctx->post_fin_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
+        }
 
         if (is_fin && !ctx->is_client) {
+            // last byte sent (server)
+            stream_ctx->response_fin_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
+            unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_ctx->stream_id, 1, current_time);
             unibo_quicperf_delete_stream_ctx(ctx, stream_ctx);
         }
     } else if (available > 0) {
         ret = picoquic_close(cnx, UNIBO_QUICPERF_ERROR_INTERNAL_ERROR);
     }
 
+    if (current_time - stream_ctx->last_printed_info_time >= 5000000) {
+        unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_ctx->stream_id, 0, current_time);
+        stream_ctx->last_printed_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
+    }
+
+    // print aggregated info of all streams
+    if (current_time - ctx->last_printed_aggr_info_time >= 5000000) {
+        unibo_quicperf_print_aggr_info(cnx, ctx, 0, current_time);
+        ctx->last_printed_aggr_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
+    }
+
     return ret;
 }
 
-void unibo_quicperf_print_info(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ctx, unibo_quicperf_stream_ctx_t* stream_ctx, uint64_t stream_id) {
-    uint64_t uptime = (ctx->last_interaction_time - picoquic_get_cnx_start_time(cnx));
+void unibo_quicperf_print_info(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ctx, unibo_quicperf_stream_ctx_t* stream_ctx,
+    uint64_t stream_id, int is_fin, uint64_t current_time) {
+    uint64_t uptime = current_time - stream_ctx->post_time;
     if (stream_ctx == NULL && !ctx->is_client) {
         stream_ctx = unibo_quicperf_find_stream_ctx(ctx, stream_id);
     }
-    fprintf(stdout, "\e[0;32m** [ %3lu ] Data sent: %ld - Data received: %ld - Upload Mbps: %.3lf - Download Mbps: %.3lf **\e[0m\n", 
-        uptime / 1000000,
-        (ctx->is_client) ? stream_ctx->nb_post_bytes : stream_ctx->nb_response_bytes,
-        (ctx->is_client) ? stream_ctx->nb_response_bytes : stream_ctx->nb_post_bytes,
-        (ctx->is_client) ? ((stream_ctx->nb_post_bytes * 8.0) / uptime) : ((stream_ctx->nb_response_bytes * 8.0) / uptime),
-        (ctx->is_client) ? ((stream_ctx->nb_response_bytes * 8.0) / uptime) : ((stream_ctx->nb_post_bytes * 8.0) / uptime));
+    if (!is_fin) {
+        fprintf(stdout, "** [ %3lus ] - ID %3lu: Data handed off: %ld - Data rcvd: %ld - UP: %.3lf - DOWN: %.3lf **\n", 
+            uptime / 1000000,
+            stream_id,
+            (ctx->is_client) ? stream_ctx->nb_post_bytes : stream_ctx->nb_response_bytes,
+            (ctx->is_client) ? stream_ctx->nb_response_bytes : stream_ctx->nb_post_bytes,
+            (ctx->is_client) ? ((stream_ctx->nb_post_bytes * 8.0) / uptime) : ((stream_ctx->nb_response_bytes * 8.0) / uptime),
+            (ctx->is_client) ? ((stream_ctx->nb_response_bytes * 8.0) / uptime) : ((stream_ctx->nb_post_bytes * 8.0) / uptime));
+    } else {
+        fprintf(stdout, "\e[0;32m** [ %3lus ] - ID %3lu: Data handed off: %ld - Data rcvd: %ld - UP: %.3lf - DOWN: %.3lf - FIN **\e[0m\n", 
+            uptime / 1000000,
+            stream_id,
+            (ctx->is_client) ? stream_ctx->nb_post_bytes : stream_ctx->nb_response_bytes,
+            (ctx->is_client) ? stream_ctx->nb_response_bytes : stream_ctx->nb_post_bytes,
+            (ctx->is_client) ? ((stream_ctx->nb_post_bytes * 8.0) / uptime) : ((stream_ctx->nb_response_bytes * 8.0) / uptime),
+            (ctx->is_client) ? ((stream_ctx->nb_response_bytes * 8.0) / uptime) : ((stream_ctx->nb_post_bytes * 8.0) / uptime));
+    }
+}
+
+void unibo_quicperf_print_aggr_info(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ctx, int is_fin, uint64_t current_time) {
+    uint64_t uptime = current_time - picoquic_get_cnx_start_time(cnx);
+    if (!is_fin) {
+        fprintf(stdout, "\e[0;33m** [ %3lus ] - ID TOT: Data handed off: %ld - Data rcvd: %ld - UP: %.3lf - DOWN: %.3lf **\e[0m\n",
+            uptime / 1000000,
+            ctx->data_sent,
+            ctx->data_received,
+            (ctx->data_sent * 8.0) / uptime,
+            (ctx->data_received * 8.0) / uptime);
+    } else {
+        fprintf(stdout, "\e[1;33m** [ %3lus ] - ID TOT: Data handed off: %ld - Data rcvd: %ld - UP: %.3lf - DOWN: %.3lf - FIN**\e[0m\n",
+            uptime / 1000000,
+            ctx->data_sent,
+            ctx->data_received,
+            (ctx->data_sent * 8.0) / uptime,
+            (ctx->data_received * 8.0) / uptime);
+    }
 }
 
 int unibo_quicperf_callback(picoquic_cnx_t* cnx,
@@ -629,23 +714,14 @@ int unibo_quicperf_callback(picoquic_cnx_t* cnx,
             picoquic_set_callback(cnx, unibo_quicperf_callback, ctx);
         }
     }
-
-    ctx->last_interaction_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
+    
+    uint64_t current_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
     ctx->progress_observed = 1;
 
     switch (fin_or_event) {
     case picoquic_callback_stream_data:
     case picoquic_callback_stream_fin:
-        ret = unibo_quicperf_process_stream_data(cnx, ctx, stream_ctx, stream_id, bytes, length, fin_or_event);
-        if (ctx->last_interaction_time - ctx->last_printed_info_time > 5000000) {
-            /*
-            printf("%" PRIu64 "\n", ctx->last_printed_info_time);
-            printf("%" PRIu64 "\n", ctx->last_interaction_time);
-            printf("%" PRIu64 "\n", ctx->last_printed_info_time - ctx->last_interaction_time);
-            */
-            unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_id);
-            ctx->last_printed_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
-        }
+        ret = unibo_quicperf_process_stream_data(cnx, ctx, stream_ctx, stream_id, bytes, length, fin_or_event, current_time);
         break;
     case picoquic_callback_prepare_to_send:
         if (stream_ctx == NULL) {
@@ -653,11 +729,7 @@ int unibo_quicperf_callback(picoquic_cnx_t* cnx,
             ret = -1;
         }
         else {
-            ret = unibo_quicperf_prepare_to_send(cnx, ctx, stream_ctx, bytes, length);
-            if (ctx->last_interaction_time - ctx->last_printed_info_time > 5000000) {
-                unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_id);
-                ctx->last_printed_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
-            }
+            ret = unibo_quicperf_prepare_to_send(cnx, ctx, stream_ctx, bytes, length, current_time);
         }
         break;
     case picoquic_callback_stream_reset: /* Server reset stream #x */
@@ -665,9 +737,15 @@ int unibo_quicperf_callback(picoquic_cnx_t* cnx,
             stream_ctx = unibo_quicperf_find_stream_ctx(ctx, stream_id);
         }
         picoquic_reset_stream(cnx, stream_id, 0);
-        if (ctx->last_interaction_time - ctx->last_printed_info_time > 5000000) {
-            unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_id);
-            ctx->last_printed_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
+        if (current_time - stream_ctx->last_printed_info_time >= 5000000) {
+            unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_id, 0, current_time);
+            stream_ctx->last_printed_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
+        }
+
+        // print aggregated info of all streams
+        if (current_time - ctx->last_printed_aggr_info_time >= 5000000) {
+            unibo_quicperf_print_aggr_info(cnx, ctx, 0, current_time);
+            ctx->last_printed_aggr_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
         }
         break;
     case picoquic_callback_stop_sending:
@@ -683,9 +761,14 @@ int unibo_quicperf_callback(picoquic_cnx_t* cnx,
                 stream_ctx->is_stopped = 1;
             }
         }
-        if (ctx->last_interaction_time - ctx->last_printed_info_time > 5000000) {
-            unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_id);
-            ctx->last_printed_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
+        if (current_time - stream_ctx->last_printed_info_time >= 5000000) {
+            unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_id, 0, current_time);
+            stream_ctx->last_printed_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
+        }
+        // print aggregated info of all streams
+        if (current_time - ctx->last_printed_aggr_info_time >= 5000000) {
+            unibo_quicperf_print_aggr_info(cnx, ctx, 0, current_time);
+            ctx->last_printed_aggr_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
         }
         break;
     case picoquic_callback_stateless_reset: /* Connection is unknown at peer */
@@ -695,6 +778,7 @@ int unibo_quicperf_callback(picoquic_cnx_t* cnx,
             unibo_quicperf_delete_ctx(ctx);
         }
         picoquic_set_callback(cnx, NULL, NULL);
+        unibo_quicperf_print_aggr_info(cnx, ctx, 1, current_time);
         break;
     case picoquic_callback_version_negotiation: /* Not something we would want... */
         break;
@@ -713,7 +797,7 @@ int unibo_quicperf_callback(picoquic_cnx_t* cnx,
                 picoquic_close(cnx, UNIBO_QUICPERF_ERROR_INTERNAL_ERROR);
             }
         }
-        ctx->last_printed_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
+        ctx->last_printed_aggr_info_time = current_time;
         break;
     case picoquic_callback_request_alpn_list:
         break;
