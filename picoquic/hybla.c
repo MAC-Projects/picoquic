@@ -364,10 +364,10 @@ static void picoquic_hybla_delete(picoquic_path_t* path_x) {
     //printf("\t(hybla delete)\n");
 
     picoquic_hybla_state_t* hybla_state = path_x->congestion_alg_state;
-    printf("\033[0;32m[Hybla] Releasing state\n");
-    printf("\033[0;32m[Hybla] Final rho = %f\033[0m\n", hybla_state->rho);
     
     if (path_x->congestion_alg_state != NULL) {
+        printf("\033[0;32m[Hybla] Releasing state\n");
+        printf("\033[0;32m[Hybla] Final rho = %f\033[0m\n", hybla_state->rho);
         free(path_x->congestion_alg_state);
         path_x->congestion_alg_state = NULL;
     }
