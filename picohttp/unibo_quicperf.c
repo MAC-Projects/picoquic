@@ -671,6 +671,7 @@ void unibo_quicperf_print_info(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ctx, u
             (ctx->is_client) ? stream_ctx->nb_response_bytes : stream_ctx->nb_post_bytes,
             (ctx->is_client) ? ((stream_ctx->nb_post_bytes * 8.0) / uptime) : ((stream_ctx->nb_response_bytes * 8.0) / uptime),
             (ctx->is_client) ? ((stream_ctx->nb_response_bytes * 8.0) / uptime) : ((stream_ctx->nb_post_bytes * 8.0) / uptime));
+            fflush(stdout);
     } else {
         fprintf(stdout, "\e[0;95m** [ %3lus ] - SID %3lu: Data passed to picoquic (B): %ld - rcvd (B): %ld --- Tx rate (Mbit/s), UP: %.3lf - DOWN: %.3lf - FIN **\e[0m\n", 
             uptime / 1000000,
@@ -679,6 +680,7 @@ void unibo_quicperf_print_info(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ctx, u
             (ctx->is_client) ? stream_ctx->nb_response_bytes : stream_ctx->nb_post_bytes,
             (ctx->is_client) ? ((stream_ctx->nb_post_bytes * 8.0) / uptime) : ((stream_ctx->nb_response_bytes * 8.0) / uptime),
             (ctx->is_client) ? ((stream_ctx->nb_response_bytes * 8.0) / uptime) : ((stream_ctx->nb_post_bytes * 8.0) / uptime));
+            fflush(stdout);
     }
 }
 
@@ -691,6 +693,7 @@ void unibo_quicperf_print_aggr_info(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* c
             ctx->data_received,
             (ctx->data_sent * 8.0) / uptime,
             (ctx->data_received * 8.0) / uptime);
+            fflush(stdout);
     } else {
         fprintf(stdout, "\e[1;32m** [ %3lus ] - SID ALL: Data passed to picoquic (B): %ld - rcvd (B): %ld --- Tx rate (Mbit/s), UP: %.3lf - DOWN: %.3lf - FIN **\e[0m\n",
             uptime / 1000000,
@@ -698,6 +701,7 @@ void unibo_quicperf_print_aggr_info(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* c
             ctx->data_received,
             (ctx->data_sent * 8.0) / uptime,
             (ctx->data_received * 8.0) / uptime);
+            fflush(stdout);
     }
 }
 
