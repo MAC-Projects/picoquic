@@ -46,6 +46,7 @@ typedef struct st_picoquic_hybla_state_t {
     
     double rho;
     int rho_is_initialized;
+    uint64_t rtt_used_for_rho;
 
     double increment_frac_sum;
 
@@ -67,11 +68,17 @@ void update_rho(picoquic_hybla_state_t* hybla_state, picoquic_path_t* path_x) {
         new_rho = 1.0;
 
     if (!hybla_state->rho_is_initialized || new_rho < hybla_state->rho) {
+        
+        if (abs(hybla_state->rtt_used_for_rho - path_x->smoothed_rtt) > 1000) {
+            printf("\033[0;32m[Hybla] RTT estimate = %lums, RTT0 = %dms, rho = %.3f\033[0m\n", 
+                path_x->smoothed_rtt/1000, 
+                __picoquic_hybla_rtt0_param, 
+                hybla_state->rho);
+        }
+
         hybla_state->rho = new_rho;
         hybla_state->rho_is_initialized = 1;
-
-        printf("\033[0;32m[Hybla] RTT estimate = %lums, RTT0 = %dms, rho = %.3f\033[0m\n", 
-            path_x->smoothed_rtt/1000, __picoquic_hybla_rtt0_param, hybla_state->rho);
+        hybla_state->rtt_used_for_rho = path_x->smoothed_rtt;
     }    
 }
 
@@ -372,6 +379,7 @@ static void picoquic_hybla_delete(picoquic_path_t* path_x) {
         path_x->congestion_alg_state = NULL;
     }
 }
+
 
 /* Observe the state of congestion control */
 
