@@ -355,6 +355,12 @@ int quic_server(const char* server_name, picoquic_quic_config_t * config, int ju
         ret = picoquic_packet_loop_win(qserver, config->server_port, 0, config->dest_if, 
             config->socket_buffer_size, server_loop_cb, &loop_cb_ctx);
 #else
+        char* rwin_str = getenv("RWIN");
+        if (rwin_str != NULL) {
+            uint64_t rwin = atoi(rwin_str);
+            picoquic_set_max_data_control(qserver, rwin);
+            printf("\nRWIN = %lu\n", rwin);
+        }
         ret = picoquic_packet_loop(qserver, config->server_port, 0, config->dest_if,
             config->socket_buffer_size, config->do_not_use_gso, server_loop_cb, &loop_cb_ctx);
 #endif
@@ -1013,6 +1019,12 @@ int quic_client(const char* ip_address_text, int server_port,
         }
         loop_cb.local_port = param.local_port;
 
+        char* cwin_str = getenv("CWIN");
+        if (cwin_str != NULL) {
+            uint64_t cwin = atoi(cwin_str);
+            picoquic_set_cwin_max(qclient, cwin);
+            printf("\nCWIN = %lu\n", cwin);
+        }
         ret = picoquic_packet_loop_v2(qclient, &param, client_loop_cb, &loop_cb);
     }
 

@@ -8,6 +8,9 @@
 #include "picosplay.h"
 #include "unibo_quicperf.h"
 
+// number of microseconds that have to be passed before printing logging information
+#define LOGGING_TIME 5000000
+
 void unibo_quicperf_print_info(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ctx, unibo_quicperf_stream_ctx_t* stream_ctx,
     uint64_t stream_id, int is_fin, uint64_t current_time);
 void unibo_quicperf_print_aggr_info(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ctx, int is_fin, uint64_t current_time);
@@ -567,13 +570,13 @@ int unibo_quicperf_process_stream_data(picoquic_cnx_t * cnx, unibo_quicperf_ctx_
         ret = picoquic_close(cnx, UNIBO_QUICPERF_ERROR_TOO_MUCH_DATA_SENT);
     }
 
-    if (current_time - stream_ctx->last_printed_info_time >= 5000000) {
+    if (current_time - stream_ctx->last_printed_info_time >= LOGGING_TIME) {
         unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_id, 0, current_time);
         (*nb_printed_info)++;
         stream_ctx->last_printed_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
     }
     // print aggregated info of all streams
-    if (ctx->nb_open_streams > 1 && *nb_printed_info == ctx->nb_open_streams && current_time - ctx->last_printed_aggr_info_time >= 5000000) {
+    if (ctx->nb_open_streams > 1 && *nb_printed_info == ctx->nb_open_streams && current_time - ctx->last_printed_aggr_info_time >= LOGGING_TIME) {
         unibo_quicperf_print_aggr_info(cnx, ctx, 0, current_time);
         ctx->last_printed_aggr_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
         *nb_printed_info = 0;
@@ -641,14 +644,14 @@ int unibo_quicperf_prepare_to_send(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ct
         ret = picoquic_close(cnx, UNIBO_QUICPERF_ERROR_INTERNAL_ERROR);
     }
 
-    if (!is_fin && current_time - stream_ctx->last_printed_info_time >= 5000000) {
+    if (!is_fin && current_time - stream_ctx->last_printed_info_time >= LOGGING_TIME) {
         unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_ctx->stream_id, 0, current_time);
         (*nb_printed_info)++;
         stream_ctx->last_printed_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
     }
 
     // print aggregated info of all streams
-    if (!is_fin && ctx->nb_open_streams > 1 && *nb_printed_info == ctx->nb_open_streams && current_time - ctx->last_printed_aggr_info_time >= 5000000) {
+    if (!is_fin && ctx->nb_open_streams > 1 && *nb_printed_info == ctx->nb_open_streams && current_time - ctx->last_printed_aggr_info_time >= LOGGING_TIME) {
         unibo_quicperf_print_aggr_info(cnx, ctx, 0, current_time);
         *nb_printed_info = 0;
         ctx->last_printed_aggr_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
@@ -750,14 +753,14 @@ int unibo_quicperf_callback(picoquic_cnx_t* cnx,
             stream_ctx = unibo_quicperf_find_stream_ctx(ctx, stream_id);
         }
         picoquic_reset_stream(cnx, stream_id, 0);
-        if (current_time - stream_ctx->last_printed_info_time >= 5000000) {
+        if (current_time - stream_ctx->last_printed_info_time >= LOGGING_TIME) {
             unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_id, 0, current_time);
             nb_printed_info++;
             stream_ctx->last_printed_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
         }
 
         // print aggregated info of all streams
-        if (ctx->nb_open_streams > 1 && nb_printed_info == ctx->nb_open_streams && current_time - ctx->last_printed_aggr_info_time >= 5000000) {
+        if (ctx->nb_open_streams > 1 && nb_printed_info == ctx->nb_open_streams && current_time - ctx->last_printed_aggr_info_time >= LOGGING_TIME) {
             unibo_quicperf_print_aggr_info(cnx, ctx, 0, current_time);
             nb_printed_info = 0;
             ctx->last_printed_aggr_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
@@ -776,13 +779,13 @@ int unibo_quicperf_callback(picoquic_cnx_t* cnx,
                 stream_ctx->is_stopped = 1;
             }
         }
-        if (current_time - stream_ctx->last_printed_info_time >= 5000000) {
+        if (current_time - stream_ctx->last_printed_info_time >= LOGGING_TIME) {
             unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_id, 0, current_time);
             nb_printed_info++;
             stream_ctx->last_printed_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
         }
         // print aggregated info of all streams
-        if (ctx->nb_open_streams > 1 && nb_printed_info == ctx->nb_open_streams && current_time - ctx->last_printed_aggr_info_time >= 5000000) {
+        if (ctx->nb_open_streams > 1 && nb_printed_info == ctx->nb_open_streams && current_time - ctx->last_printed_aggr_info_time >= LOGGING_TIME) {
             unibo_quicperf_print_aggr_info(cnx, ctx, 0, current_time);
             nb_printed_info = 0;
             ctx->last_printed_aggr_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
