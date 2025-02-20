@@ -52,6 +52,8 @@ typedef struct st_unibo_quicperf_stream_ctx {
     unibo_quicperf_cnx_type_t type; /* type of the connection*/
     uint64_t duration; /* duration of the connection in seconds */
     uint64_t last_printed_info_time;
+    uint64_t last_printed_info_on_csv_time;
+    FILE *csv_file; /* csv log file */
 } unibo_quicperf_stream_ctx_t;
 
 typedef struct st_unibo_quicperf_ctx_t {

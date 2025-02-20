@@ -10,10 +10,13 @@
 
 // number of microseconds that have to be passed before printing logging information
 #define LOGGING_TIME 5000000
+#define WRITING_ON_CSV_TIME 500000
 
+void unibo_quicperf_print_info_on_file(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ctx, unibo_quicperf_stream_ctx_t* stream_ctx,
+    uint64_t stream_id, uint64_t current_time);
 void unibo_quicperf_print_info(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ctx, unibo_quicperf_stream_ctx_t* stream_ctx,
-    uint64_t stream_id, int is_fin, uint64_t current_time);
-void unibo_quicperf_print_aggr_info(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ctx, int is_fin, uint64_t current_time);
+    uint64_t stream_id, int stream_done, uint64_t current_time, int* nb_printed_info);
+void unibo_quicperf_print_aggr_info(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ctx, int stream_done, uint64_t current_time);
 
 /* management of scenarios by the quicperf client 
  */
@@ -446,6 +449,16 @@ int unibo_quicperf_init_streams_from_scenario(picoquic_cnx_t* cnx, unibo_quicper
                 stream_ctx->last_printed_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
                 // activation time (client)
                 stream_ctx->post_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
+
+                // file for logging stuff
+                char *file_name = getenv("QUICPERF_CSV_LOG_NAME");
+                if (file_name != NULL) {
+                    stream_ctx->csv_file = fopen(file_name, "w");
+                    fprintf(stream_ctx->csv_file, "Time,Stream ID,Data passed,Data received,Upload rate,Download rate\n");
+                } else {
+                    stream_ctx->csv_file = NULL;
+                }
+
                 picoquic_set_stream_priority(cnx, stream_ctx->stream_id, 8);
                 stream_x += 4;
                 ctx->nb_open_streams++;
@@ -543,6 +556,13 @@ int unibo_quicperf_process_stream_data(picoquic_cnx_t * cnx, unibo_quicperf_ctx_
             stream_ctx->last_printed_info_time = current_time;
             // first byte received (server)
             stream_ctx->post_time = current_time;
+            char *file_name = getenv("QUICPERF_CSV_LOG_NAME");
+            if (file_name != NULL) {
+                stream_ctx->csv_file = fopen(file_name, "w");
+                fprintf(stream_ctx->csv_file, "Time,Stream ID,Data passed,Data received,Upload rate,Download rate\n");
+            } else {
+                stream_ctx->csv_file = NULL;
+            }
         }
         /* Accumulate the first 8 bytes */
         
@@ -570,19 +590,18 @@ int unibo_quicperf_process_stream_data(picoquic_cnx_t * cnx, unibo_quicperf_ctx_
         ret = picoquic_close(cnx, UNIBO_QUICPERF_ERROR_TOO_MUCH_DATA_SENT);
     }
 
-    if (current_time - stream_ctx->last_printed_info_time >= LOGGING_TIME) {
-        unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_id, 0, current_time);
-        (*nb_printed_info)++;
-        stream_ctx->last_printed_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
-    }
-    // print aggregated info of all streams
-    if (ctx->nb_open_streams > 1 && *nb_printed_info == ctx->nb_open_streams && current_time - ctx->last_printed_aggr_info_time >= LOGGING_TIME) {
+    unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_id, 0, current_time, nb_printed_info);
+    unibo_quicperf_print_info_on_file(cnx, ctx, stream_ctx, stream_id, current_time);
+    
+    // print aggregated info of all streams 
+    if (ctx->nb_open_streams > 1 && *nb_printed_info == ctx->nb_open_streams) {
         unibo_quicperf_print_aggr_info(cnx, ctx, 0, current_time);
         ctx->last_printed_aggr_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
         *nb_printed_info = 0;
     }
+
     if (ctx->is_client && fin_or_event == picoquic_callback_stream_fin) {
-        unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_id, 1, current_time);
+        unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_id, 1, current_time, nb_printed_info);
     }
 
     return ret;
@@ -627,27 +646,28 @@ int unibo_quicperf_prepare_to_send(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ct
         else {
             stream_ctx->nb_response_bytes += available;
         }
-        if (is_fin && ctx->is_client) {
-            // last byte sent (client)
-            stream_ctx->post_fin_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
-        }
 
-        if (is_fin && !ctx->is_client) {
-            // last byte sent (server)
-            stream_ctx->response_fin_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
-            unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_ctx->stream_id, 1, current_time);
-
-            ctx->nb_open_streams--;
-            unibo_quicperf_delete_stream_ctx(ctx, stream_ctx);
+        if (is_fin) {
+            if (ctx->is_client) {
+                // last byte sent (client)
+                stream_ctx->post_fin_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
+            } else {
+                // last byte sent (server)
+                stream_ctx->response_fin_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
+                unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_ctx->stream_id, 1, current_time, nb_printed_info);
+    
+                ctx->nb_open_streams--;
+                unibo_quicperf_delete_stream_ctx(ctx, stream_ctx);
+            }
         }
+        
     } else if (available > 0) {
         ret = picoquic_close(cnx, UNIBO_QUICPERF_ERROR_INTERNAL_ERROR);
     }
 
-    if (!is_fin && current_time - stream_ctx->last_printed_info_time >= LOGGING_TIME) {
-        unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_ctx->stream_id, 0, current_time);
-        (*nb_printed_info)++;
-        stream_ctx->last_printed_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
+    if (!is_fin) {
+        unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_ctx->stream_id, 0, current_time, nb_printed_info);
+        unibo_quicperf_print_info_on_file(cnx, ctx, stream_ctx, stream_ctx->stream_id, current_time);
     }
 
     // print aggregated info of all streams
@@ -660,44 +680,74 @@ int unibo_quicperf_prepare_to_send(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ct
     return ret;
 }
 
-void unibo_quicperf_print_info(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ctx, unibo_quicperf_stream_ctx_t* stream_ctx,
-    uint64_t stream_id, int is_fin, uint64_t current_time) {
+void unibo_quicperf_print_info_on_file(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ctx, unibo_quicperf_stream_ctx_t* stream_ctx,
+        uint64_t stream_id, uint64_t current_time) {
+
     uint64_t uptime = current_time - stream_ctx->post_time;
-    if (stream_ctx == NULL && !ctx->is_client) {
-        stream_ctx = unibo_quicperf_find_stream_ctx(ctx, stream_id);
-    }
-    if (!is_fin) {
-        fprintf(stdout, "** [ %3lus ] - SID %3lu: Data passed to picoquic (B): %ld - rcvd (B): %ld --- Tx rate (Mbit/s), UP: %.3lf - DOWN: %.3lf **\n", 
-            uptime / 1000000,
-            stream_id,
-            (ctx->is_client) ? stream_ctx->nb_post_bytes : stream_ctx->nb_response_bytes,
-            (ctx->is_client) ? stream_ctx->nb_response_bytes : stream_ctx->nb_post_bytes,
-            (ctx->is_client) ? ((stream_ctx->nb_post_bytes * 8.0) / uptime) : ((stream_ctx->nb_response_bytes * 8.0) / uptime),
-            (ctx->is_client) ? ((stream_ctx->nb_response_bytes * 8.0) / uptime) : ((stream_ctx->nb_post_bytes * 8.0) / uptime));
-            fflush(stdout);
-    } else {
-        fprintf(stdout, "\e[0;95m** [ %3lus ] - SID %3lu: Data passed to picoquic (B): %ld - rcvd (B): %ld --- Tx rate (Mbit/s), UP: %.3lf - DOWN: %.3lf - FIN **\e[0m\n", 
-            uptime / 1000000,
-            stream_id,
-            (ctx->is_client) ? stream_ctx->nb_post_bytes : stream_ctx->nb_response_bytes,
-            (ctx->is_client) ? stream_ctx->nb_response_bytes : stream_ctx->nb_post_bytes,
-            (ctx->is_client) ? ((stream_ctx->nb_post_bytes * 8.0) / uptime) : ((stream_ctx->nb_response_bytes * 8.0) / uptime),
-            (ctx->is_client) ? ((stream_ctx->nb_response_bytes * 8.0) / uptime) : ((stream_ctx->nb_post_bytes * 8.0) / uptime));
-            fflush(stdout);
+    if (uptime != 0 && stream_ctx->csv_file != NULL) {
+        uint64_t data_passed = (ctx->is_client) ? stream_ctx->nb_post_bytes : stream_ctx->nb_response_bytes;
+        uint64_t data_rcvd = (ctx->is_client) ? stream_ctx->nb_response_bytes : stream_ctx->nb_post_bytes;
+        double up_rate = (ctx->is_client) ? ((stream_ctx->nb_post_bytes * 8.0) / uptime) : ((stream_ctx->nb_response_bytes * 8.0) / uptime);
+        double down_rate = (ctx->is_client) ? ((stream_ctx->nb_response_bytes * 8.0) / uptime) : ((stream_ctx->nb_post_bytes * 8.0) / uptime);
+    
+        if (current_time - stream_ctx->last_printed_info_on_csv_time >= WRITING_ON_CSV_TIME) {
+            fprintf(stream_ctx->csv_file, "%lu,%lu,%ld,%ld,%lf,%lf\n", uptime, stream_id, data_passed, data_rcvd, up_rate, down_rate);
+            stream_ctx->last_printed_info_on_csv_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
+        }
     }
 }
 
-void unibo_quicperf_print_aggr_info(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ctx, int is_fin, uint64_t current_time) {
-    uint64_t uptime = current_time - picoquic_get_cnx_start_time(cnx);
-    if (!is_fin) {
-        fprintf(stdout, "\e[0;93m** [ %3lus ] - SID ALL: Data passed to picoquic (B): %ld - rcvd (B): %ld --- Tx rate (Mbit/s), UP: %.3lf - DOWN: %.3lf **\e[0m\n",
-            uptime / 1000000,
-            ctx->data_sent,
-            ctx->data_received,
-            (ctx->data_sent * 8.0) / uptime,
-            (ctx->data_received * 8.0) / uptime);
+void unibo_quicperf_print_info(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ctx, unibo_quicperf_stream_ctx_t* stream_ctx,
+        uint64_t stream_id, int stream_done, uint64_t current_time, int* nb_printed_info) {
+    
+    if (stream_ctx == NULL && !ctx->is_client) {
+        stream_ctx = unibo_quicperf_find_stream_ctx(ctx, stream_id);
+    }
+
+    // uptime is in microseconds
+    uint64_t uptime = current_time - stream_ctx->post_time;
+    uint64_t uptime_sec = uptime / 1000000;
+    uint64_t data_passed = (ctx->is_client) ? stream_ctx->nb_post_bytes : stream_ctx->nb_response_bytes;
+    uint64_t data_rcvd = (ctx->is_client) ? stream_ctx->nb_response_bytes : stream_ctx->nb_post_bytes;
+    double up_rate = (ctx->is_client) ? ((stream_ctx->nb_post_bytes * 8.0) / uptime) : ((stream_ctx->nb_response_bytes * 8.0) / uptime);
+    double down_rate = (ctx->is_client) ? ((stream_ctx->nb_response_bytes * 8.0) / uptime) : ((stream_ctx->nb_post_bytes * 8.0) / uptime);
+
+    if (!stream_done) {
+        if (current_time - stream_ctx->last_printed_info_time >= LOGGING_TIME) {
+            fprintf(stdout, "** [ %3lus ] - SID %3lu: Data passed to picoquic (B): %ld - rcvd (B): %ld --- Tx rate (Mbit/s), UP: %.3lf - DOWN: %.3lf **\n", 
+            uptime_sec, stream_id, data_passed, data_rcvd, up_rate, down_rate);
             fflush(stdout);
+            stream_ctx->last_printed_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
+            (*nb_printed_info)++;
+        }
     } else {
+        // end of stream
+        fprintf(stdout, "\e[0;95m** [ %3lus ] - SID %3lu: Data passed to picoquic (B): %ld - rcvd (B): %ld --- Tx rate (Mbit/s), UP: %.3lf - DOWN: %.3lf - FIN **\e[0m\n", 
+            uptime_sec, stream_id, data_passed, data_rcvd, up_rate, down_rate);
+            fflush(stdout);
+
+        if (stream_ctx->csv_file != NULL) {
+            fprintf(stream_ctx->csv_file, "%lu,%lu,%ld,%ld,%lf,%lf\n", uptime, stream_id, data_passed, data_rcvd, up_rate, down_rate);
+            fclose(stream_ctx->csv_file);
+        }
+    }
+}
+
+void unibo_quicperf_print_aggr_info(picoquic_cnx_t* cnx, unibo_quicperf_ctx_t* ctx, int stream_done, uint64_t current_time) {
+    uint64_t uptime = current_time - picoquic_get_cnx_start_time(cnx);
+    if (!stream_done) {
+        if (current_time - ctx->last_printed_aggr_info_time >= LOGGING_TIME) {
+            // aggregated every X seconds
+            fprintf(stdout, "\e[0;93m** [ %3lus ] - SID ALL: Data passed to picoquic (B): %ld - rcvd (B): %ld --- Tx rate (Mbit/s), UP: %.3lf - DOWN: %.3lf **\e[0m\n",
+                uptime / 1000000,
+                ctx->data_sent,
+                ctx->data_received,
+                (ctx->data_sent * 8.0) / uptime,
+                (ctx->data_received * 8.0) / uptime);
+                fflush(stdout);
+        }
+    } else {
+        // aggregated at the end of connection
         fprintf(stdout, "\e[1;32m** [ %3lus ] - SID ALL: Data passed to picoquic (B): %ld - rcvd (B): %ld --- Tx rate (Mbit/s), UP: %.3lf - DOWN: %.3lf - FIN **\e[0m\n",
             uptime / 1000000,
             ctx->data_sent,
@@ -753,11 +803,8 @@ int unibo_quicperf_callback(picoquic_cnx_t* cnx,
             stream_ctx = unibo_quicperf_find_stream_ctx(ctx, stream_id);
         }
         picoquic_reset_stream(cnx, stream_id, 0);
-        if (current_time - stream_ctx->last_printed_info_time >= LOGGING_TIME) {
-            unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_id, 0, current_time);
-            nb_printed_info++;
-            stream_ctx->last_printed_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
-        }
+        unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_id, 0, current_time, &nb_printed_info);
+        unibo_quicperf_print_info_on_file(cnx, ctx, stream_ctx, stream_id, current_time);
 
         // print aggregated info of all streams
         if (ctx->nb_open_streams > 1 && nb_printed_info == ctx->nb_open_streams && current_time - ctx->last_printed_aggr_info_time >= LOGGING_TIME) {
@@ -779,11 +826,9 @@ int unibo_quicperf_callback(picoquic_cnx_t* cnx,
                 stream_ctx->is_stopped = 1;
             }
         }
-        if (current_time - stream_ctx->last_printed_info_time >= LOGGING_TIME) {
-            unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_id, 0, current_time);
-            nb_printed_info++;
-            stream_ctx->last_printed_info_time = picoquic_get_quic_time(picoquic_get_quic_ctx(cnx));
-        }
+        unibo_quicperf_print_info(cnx, ctx, stream_ctx, stream_id, 0, current_time, &nb_printed_info);
+        unibo_quicperf_print_info_on_file(cnx, ctx, stream_ctx, stream_id, current_time);
+
         // print aggregated info of all streams
         if (ctx->nb_open_streams > 1 && nb_printed_info == ctx->nb_open_streams && current_time - ctx->last_printed_aggr_info_time >= LOGGING_TIME) {
             unibo_quicperf_print_aggr_info(cnx, ctx, 0, current_time);
