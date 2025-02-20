@@ -299,7 +299,7 @@ static int config_set_option(option_table_line_t* option_desc, option_param_t* p
             fprintf(stderr, "Invalid rtt0 value: %d\n", v);
         }
         else {
-            picoquic_hybla_set_rtt0(v);
+            picoquic_hybla_set_rtt0_param(v);
         }
         break;
     }
