@@ -26,8 +26,8 @@
 
 #include <math.h>
 
-int __picoquic_hybla_rtt0_param = 25;
-uint64_t __picoquic_hybla_initial_ssthresh_param = UINT64_MAX;
+static int __picoquic_hybla_rtt0_param = 25;
+static uint64_t __picoquic_hybla_initial_ssthresh_param = UINT64_MAX;
 
 typedef enum {
     picoquic_hybla_alg_slow_start = 0,
@@ -197,7 +197,7 @@ static void picoquic_hybla_notify(
                 }
             }
 
-            if (path_x->last_time_acked_data_frame_sent > path_x->last_sender_limited_time) {
+            if (path_x->last_time_acked_data_frame_sent > path_x->last_sender_limited_time || !path_x->is_ssthresh_initialized) {
                 switch (hybla_state->alg_state) {
                     case picoquic_hybla_alg_slow_start:
 
@@ -216,15 +216,17 @@ static void picoquic_hybla_notify(
                             hybla_state->increment_frac_sum -= 1.0;
                             total_increment += 1;
                         }
-                        
+
                         // If the SS increment exceeds ssthresh, process ssthresh bytes according to SS and the remaining ones according to CA
-                        if (hybla_state->ssthresh < total_increment) {
+                        if (hybla_state->cwin + total_increment > hybla_state->ssthresh) {
+                            
+                            uint64_t excess_increment = hybla_state->cwin + total_increment - hybla_state->ssthresh;
+                            uint64_t excess_bytes = floor(ack_state->nb_bytes_acknowledged * excess_increment / total_increment);
 
                             // Handle ssthresh bytes according to SS
-                            hybla_state->cwin += hybla_state->ssthresh;
-                            
+                            hybla_state->cwin = hybla_state->ssthresh;
+
                             // Handle remaining bytes according to CA
-                            uint64_t excess_bytes = total_increment - hybla_state->ssthresh;
                             double ca_increment_from_excess = picoquic_hybla_get_raw_ca_increment(hybla_state, path_x, excess_bytes);
                             
                             uint64_t ca_increment_int_part = floor(ca_increment_from_excess);
@@ -289,10 +291,10 @@ static void picoquic_hybla_notify(
             /* if the loss happened in this period, enter recovery */
             if (hybla_state->recovery_sequence <= ack_state->lost_packet_number) {
                 picoquic_hybla_enter_recovery(hybla_state, cnx, path_x, notification, current_time);
+                // Hybla-only change: setting is_ssthresh_initialized to true
+                path_x->is_ssthresh_initialized = 1;
             }
 
-            // Hybla-only change: setting is_ssthresh_initialized to true
-            path_x->is_ssthresh_initialized = 1;
             
             break;
         case picoquic_congestion_notification_spurious_repeat:
@@ -321,7 +323,7 @@ static void picoquic_hybla_notify(
                 }
             }
             path_x->cwin = hybla_state->cwin;
-            path_x->is_ssthresh_initialized = 1;
+            //path_x->is_ssthresh_initialized = 1;
 
             break;
         case picoquic_congestion_notification_rtt_measurement:
