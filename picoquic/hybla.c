@@ -304,7 +304,7 @@ static void picoquic_hybla_notify(
                     //If spurious repeat of initial loss detected,
                     //exit recovery and reset threshold to pre-entry cwin.
                     
-                    if (!path_x->is_ssthresh_initialized && hybla_state->cwin < 2 * hybla_state->ssthresh) {
+                    if (path_x->is_ssthresh_initialized && hybla_state->cwin < 2 * hybla_state->ssthresh) {
                         hybla_state->cwin = 2 * hybla_state->ssthresh;
                         hybla_state->alg_state = picoquic_hybla_alg_congestion_avoidance;
                     }
@@ -316,7 +316,7 @@ static void picoquic_hybla_notify(
                     //If spurious repeat of initial loss detected,
                     //exit recovery and reset threshold to pre-entry cwin.
                     
-                    if (!path_x->is_ssthresh_initialized && hybla_state->cwin < 2 * hybla_state->ssthresh) {
+                    if (path_x->is_ssthresh_initialized && hybla_state->cwin < 2 * hybla_state->ssthresh) {
                         hybla_state->cwin = 2 * hybla_state->ssthresh;
                         hybla_state->alg_state = picoquic_hybla_alg_congestion_avoidance;
                     }
