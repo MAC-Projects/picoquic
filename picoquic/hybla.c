@@ -72,17 +72,19 @@ void update_rho(picoquic_hybla_state_t* hybla_state, picoquic_path_t* path_x) {
         new_rho = 1.0;
 
     if (!hybla_state->rho_is_initialized || new_rho < hybla_state->rho) {
+
+        hybla_state->rho = new_rho;
         
-        if (abs(hybla_state->rtt_used_for_rho - path_x->smoothed_rtt) > 1000) {
+        // Print rho updates only if the RTT used in its calculation has changed by at least 1ms
+        if (!hybla_state->rho_is_initialized || (hybla_state->rtt_used_for_rho - path_x->smoothed_rtt) >= 1000) {
             printf("\033[0;32m[Hybla] RTT estimate = %lums, RTT0 = %dms, rho = %.3f\033[0m\n", 
                 path_x->smoothed_rtt/1000, 
                 hybla_state->rtt0, 
                 hybla_state->rho);
         }
 
-        hybla_state->rho = new_rho;
-        hybla_state->rho_is_initialized = 1;
         hybla_state->rtt_used_for_rho = path_x->smoothed_rtt;
+        hybla_state->rho_is_initialized = 1;
     }    
 }
 
