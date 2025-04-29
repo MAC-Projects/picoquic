@@ -100,12 +100,12 @@ static void picoquic_hybla_enter_recovery(
 
     hybla_state->ssthresh = (hybla_state->cwin / 2);
 
-    if (hybla_state->ssthresh < PICOQUIC_CWIN_MINIMUM * hybla_state->rho) {
-        hybla_state->ssthresh = PICOQUIC_CWIN_MINIMUM * hybla_state->rho;
+    if (hybla_state->ssthresh < PICOQUIC_CWIN_MINIMUM) {
+        hybla_state->ssthresh = PICOQUIC_CWIN_MINIMUM;
     }
 
     if (notification == picoquic_congestion_notification_timeout) {
-        hybla_state->cwin = PICOQUIC_CWIN_MINIMUM * hybla_state->rho;
+        hybla_state->cwin = PICOQUIC_CWIN_MINIMUM;
         hybla_state->alg_state = picoquic_hybla_alg_slow_start;
     }
     else {
