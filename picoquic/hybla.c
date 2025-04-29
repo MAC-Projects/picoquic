@@ -220,18 +220,24 @@ static void picoquic_hybla_notify(
                             total_increment += 1;
                         }
                         
-                        // If the SS increment exceeds ssthresh, process ssthresh bytes according to SS and the remaining ones according to CA
-                        if (hybla_state->ssthresh < total_increment) {
+                        // If the SS increment would make the cwin exceed ssthresh, 
+                        // process a chunk bytes according to SS, and the remaining ones according to CA
+                        if (hybla_state->cwin + total_increment > hybla_state->ssthresh) {
 
-                            // Handle ssthresh bytes according to SS
-                            hybla_state->cwin += hybla_state->ssthresh;
+                            uint64_t ss_increment = hybla_state->ssthresh - hybla_state->cwin;
+
+                            // Handle the first chunk of ACK bytes according to SS
+                            hybla_state->cwin += ss_increment;
                             
-                            // Handle remaining bytes according to CA
-                            uint64_t excess_bytes = total_increment - hybla_state->ssthresh;
-                            double ca_increment_from_excess = picoquic_hybla_get_raw_ca_increment(hybla_state, path_x, excess_bytes);
+                            // Handle remaining ACK bytes according to CA
+                            uint64_t excess_increment_bytes = total_increment - ss_increment;
+                            uint64_t ack_bytes_to_be_handled_as_ca = 
+                                ack_state->nb_bytes_acknowledged * (1 - excess_increment_bytes/total_increment);
                             
-                            uint64_t ca_increment_int_part = floor(ca_increment_from_excess);
-                            double ca_increment_frac_part = ca_increment_from_excess - ca_increment_int_part;
+                            double ca_increment= picoquic_hybla_get_raw_ca_increment(hybla_state, path_x, ack_bytes_to_be_handled_as_ca);
+                            
+                            uint64_t ca_increment_int_part = floor(ca_increment);
+                            double ca_increment_frac_part = ca_increment - ca_increment_int_part;
 
                             hybla_state->cwin += ca_increment_int_part;
 
@@ -269,13 +275,6 @@ static void picoquic_hybla_notify(
                             hybla_state->cwin += 1;
                             hybla_state->increment_frac_sum -= 1.0;
                         }
-                        
-                        // In NewReno:
-                        /*
-                        uint64_t complete_delta = ack_state->nb_bytes_acknowledged * path_x->send_mtu + hybla_state->residual_ack;
-                        hybla_state->residual_ack = complete_delta % hybla_state->cwin;
-                        hybla_state->cwin += complete_delta / hybla_state->cwin;
-                        */
                         break;
                     }
                 }
