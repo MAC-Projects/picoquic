@@ -232,7 +232,7 @@ static void picoquic_hybla_notify(
                             // Handle remaining ACK bytes according to CA
                             uint64_t excess_increment_bytes = total_increment - ss_increment;
                             uint64_t ack_bytes_to_be_handled_as_ca = 
-                                ack_state->nb_bytes_acknowledged * (1 - excess_increment_bytes/total_increment);
+                                floor(ack_state->nb_bytes_acknowledged * ((double) excess_increment_bytes/total_increment));
                             
                             double ca_increment= picoquic_hybla_get_raw_ca_increment(hybla_state, path_x, ack_bytes_to_be_handled_as_ca);
                             
@@ -299,7 +299,7 @@ static void picoquic_hybla_notify(
             
             path_x->cwin = hybla_state->cwin;
             break;
-        case picoquic_congestion_notification_spurious_repeat:
+        case picoquic_congestion_notification_spurious_repeat:           
             if (!cnx->is_multipath_enabled) {
                 if (current_time - hybla_state->recovery_start < path_x->smoothed_rtt &&
                     hybla_state->recovery_sequence > picoquic_cc_get_ack_number(cnx, path_x)) {
@@ -324,6 +324,7 @@ static void picoquic_hybla_notify(
                     }
                 }
             }
+
             path_x->cwin = hybla_state->cwin;
             path_x->is_ssthresh_initialized = 1;
 
@@ -333,7 +334,7 @@ static void picoquic_hybla_notify(
 
                 update_rho(hybla_state, path_x);
 
-                uint64_t min_win = PICOQUIC_CWIN_INITIAL * hybla_state->rho;
+                uint64_t min_win = PICOQUIC_CWIN_INITIAL;
                 if (min_win > hybla_state->cwin) {
                     hybla_state->cwin = min_win;
                     path_x->cwin = hybla_state->cwin;
