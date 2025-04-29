@@ -818,6 +818,12 @@ int quic_client(const char* ip_address_text, int server_port,
         }
     }
 
+    char* hybla_initial_ssthresh_str = getenv("INITIAL_SSTHRESH");
+    if (hybla_initial_ssthresh_str != NULL) {
+        uint64_t initial_ssthresh = atoi(hybla_initial_ssthresh_str);
+        picoquic_hybla_set_initial_ssthresh_param(initial_ssthresh);
+    }
+
     /* Create QUIC context */
     current_time = picoquic_current_time();
     callback_ctx.last_interaction_time = current_time;
@@ -1024,12 +1030,6 @@ int quic_client(const char* ip_address_text, int server_port,
             uint64_t cwin = atoi(cwin_str);
             picoquic_set_cwin_max(qclient, cwin);
             printf("\nCWIN = %lu\n", cwin);
-        }
-
-        char* hybla_initial_ssthresh_str = getenv("INITIAL_SSTHRESH");
-        if (hybla_initial_ssthresh_str != NULL) {
-            uint64_t initial_ssthresh = atoi(hybla_initial_ssthresh_str);
-            picoquic_hybla_set_initial_ssthresh_param(initial_ssthresh);
         }
 
         ret = picoquic_packet_loop_v2(qclient, &param, client_loop_cb, &loop_cb);
