@@ -285,6 +285,7 @@ static void picoquic_hybla_notify(
             break;
         case picoquic_congestion_notification_seed_cwin:
             picoquic_hybla_seed_cwin(hybla_state, path_x, ack_state->nb_bytes_acknowledged);
+            path_x->cwin = hybla_state->cwin;
             break;
         case picoquic_congestion_notification_ecn_ec:
         case picoquic_congestion_notification_repeat:
@@ -297,6 +298,7 @@ static void picoquic_hybla_notify(
             // Hybla-only change: setting is_ssthresh_initialized to true
             path_x->is_ssthresh_initialized = 1;
             
+            path_x->cwin = hybla_state->cwin;
             break;
         case picoquic_congestion_notification_spurious_repeat:
             if (!cnx->is_multipath_enabled) {
