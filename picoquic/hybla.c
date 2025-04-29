@@ -29,7 +29,7 @@
 int __picoquic_hybla_rtt0_param = 25;
 uint64_t __picoquic_hybla_initial_ssthresh_param = UINT64_MAX;
 
-static rtt_last_printed;
+static uint64_t rtt_last_printed;
 
 typedef enum {
     picoquic_hybla_alg_slow_start = 0,
