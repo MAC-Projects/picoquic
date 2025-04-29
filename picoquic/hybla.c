@@ -100,12 +100,12 @@ static void picoquic_hybla_enter_recovery(
 
     hybla_state->ssthresh = (hybla_state->cwin / 2);
 
-    if (hybla_state->ssthresh < PICOQUIC_CWIN_MINIMUM) {
-        hybla_state->ssthresh = PICOQUIC_CWIN_MINIMUM;
+    if (hybla_state->ssthresh < PICOQUIC_CWIN_MINIMUM * hybla_state->rho) {
+        hybla_state->ssthresh = PICOQUIC_CWIN_MINIMUM * hybla_state->rho;
     }
 
     if (notification == picoquic_congestion_notification_timeout) {
-        hybla_state->cwin = PICOQUIC_CWIN_MINIMUM;
+        hybla_state->cwin = PICOQUIC_CWIN_MINIMUM * hybla_state->rho;
         hybla_state->alg_state = picoquic_hybla_alg_slow_start;
     }
     else {
@@ -230,6 +230,7 @@ static void picoquic_hybla_notify(
                             hybla_state->cwin += ss_increment;
                             
                             // Handle remaining ACK bytes according to CA
+                            /*
                             uint64_t excess_increment_bytes = total_increment - ss_increment;
                             uint64_t ack_bytes_to_be_handled_as_ca = 
                                 floor(ack_state->nb_bytes_acknowledged * ((double) excess_increment_bytes/total_increment));
@@ -247,6 +248,7 @@ static void picoquic_hybla_notify(
                                 hybla_state->increment_frac_sum -= 1.0;
                                 hybla_state->cwin += 1;
                             }
+                            */
                         }
                         // Else, handle all bytes as per SS
                         else
