@@ -26,8 +26,10 @@
 
 #include <math.h>
 
-static int __picoquic_hybla_rtt0_param = 25;
-static uint64_t __picoquic_hybla_initial_ssthresh_param = UINT64_MAX;
+int __picoquic_hybla_rtt0_param = 25;
+uint64_t __picoquic_hybla_initial_ssthresh_param = UINT64_MAX;
+
+static uint64_t rtt_last_printed;
 
 typedef enum {
     picoquic_hybla_alg_slow_start = 0,
@@ -45,7 +47,6 @@ typedef struct st_picoquic_hybla_state_t {
     
     double rho;
     int rho_is_initialized;
-    uint64_t rtt_used_for_rho;
 
     double increment_frac_sum;
 
@@ -72,17 +73,19 @@ void update_rho(picoquic_hybla_state_t* hybla_state, picoquic_path_t* path_x) {
         new_rho = 1.0;
 
     if (!hybla_state->rho_is_initialized || new_rho < hybla_state->rho) {
+
+        hybla_state->rho = new_rho;
         
-        if (abs(hybla_state->rtt_used_for_rho - path_x->smoothed_rtt) > 1000) {
+        if (!hybla_state->rho_is_initialized || (rtt_last_printed - path_x->smoothed_rtt) >= 1000) {
             printf("\033[0;32m[Hybla] RTT estimate = %lums, RTT0 = %dms, rho = %.3f\033[0m\n", 
                 path_x->smoothed_rtt/1000, 
                 hybla_state->rtt0, 
                 hybla_state->rho);
+
+            rtt_last_printed = path_x->smoothed_rtt;
         }
 
-        hybla_state->rho = new_rho;
         hybla_state->rho_is_initialized = 1;
-        hybla_state->rtt_used_for_rho = path_x->smoothed_rtt;
     }    
 }
 
@@ -197,7 +200,7 @@ static void picoquic_hybla_notify(
                 }
             }
 
-            if (path_x->last_time_acked_data_frame_sent > path_x->last_sender_limited_time || !path_x->is_ssthresh_initialized) {
+            if (path_x->last_time_acked_data_frame_sent > path_x->last_sender_limited_time) {
                 switch (hybla_state->alg_state) {
                     case picoquic_hybla_alg_slow_start:
 
@@ -216,21 +219,26 @@ static void picoquic_hybla_notify(
                             hybla_state->increment_frac_sum -= 1.0;
                             total_increment += 1;
                         }
-
-                        // If the SS increment exceeds ssthresh, process ssthresh bytes according to SS and the remaining ones according to CA
+                        
+                        // If the SS increment would make the cwin exceed ssthresh, 
+                        // process a chunk bytes according to SS, and the remaining ones according to CA
                         if (hybla_state->cwin + total_increment > hybla_state->ssthresh) {
-                            
-                            uint64_t excess_increment = hybla_state->cwin + total_increment - hybla_state->ssthresh;
-                            uint64_t excess_bytes = floor(ack_state->nb_bytes_acknowledged * excess_increment / total_increment);
 
-                            // Handle ssthresh bytes according to SS
-                            hybla_state->cwin = hybla_state->ssthresh;
+                            uint64_t ss_increment = hybla_state->ssthresh - hybla_state->cwin;
 
-                            // Handle remaining bytes according to CA
-                            double ca_increment_from_excess = picoquic_hybla_get_raw_ca_increment(hybla_state, path_x, excess_bytes);
+                            // Handle the first chunk of ACK bytes according to SS
+                            hybla_state->cwin += ss_increment;
                             
-                            uint64_t ca_increment_int_part = floor(ca_increment_from_excess);
-                            double ca_increment_frac_part = ca_increment_from_excess - ca_increment_int_part;
+                            // Handle remaining ACK bytes according to CA
+                            /*
+                            uint64_t excess_increment_bytes = total_increment - ss_increment;
+                            uint64_t ack_bytes_to_be_handled_as_ca = 
+                                floor(ack_state->nb_bytes_acknowledged * ((double) excess_increment_bytes/total_increment));
+                            
+                            double ca_increment= picoquic_hybla_get_raw_ca_increment(hybla_state, path_x, ack_bytes_to_be_handled_as_ca);
+                            
+                            uint64_t ca_increment_int_part = floor(ca_increment);
+                            double ca_increment_frac_part = ca_increment - ca_increment_int_part;
 
                             hybla_state->cwin += ca_increment_int_part;
 
@@ -240,6 +248,7 @@ static void picoquic_hybla_notify(
                                 hybla_state->increment_frac_sum -= 1.0;
                                 hybla_state->cwin += 1;
                             }
+                            */
                         }
                         // Else, handle all bytes as per SS
                         else
@@ -268,13 +277,6 @@ static void picoquic_hybla_notify(
                             hybla_state->cwin += 1;
                             hybla_state->increment_frac_sum -= 1.0;
                         }
-                        
-                        // In NewReno:
-                        /*
-                        uint64_t complete_delta = ack_state->nb_bytes_acknowledged * path_x->send_mtu + hybla_state->residual_ack;
-                        hybla_state->residual_ack = complete_delta % hybla_state->cwin;
-                        hybla_state->cwin += complete_delta / hybla_state->cwin;
-                        */
                         break;
                     }
                 }
@@ -284,6 +286,7 @@ static void picoquic_hybla_notify(
             break;
         case picoquic_congestion_notification_seed_cwin:
             picoquic_hybla_seed_cwin(hybla_state, path_x, ack_state->nb_bytes_acknowledged);
+            path_x->cwin = hybla_state->cwin;
             break;
         case picoquic_congestion_notification_ecn_ec:
         case picoquic_congestion_notification_repeat:
@@ -291,13 +294,13 @@ static void picoquic_hybla_notify(
             /* if the loss happened in this period, enter recovery */
             if (hybla_state->recovery_sequence <= ack_state->lost_packet_number) {
                 picoquic_hybla_enter_recovery(hybla_state, cnx, path_x, notification, current_time);
-                // Hybla-only change: setting is_ssthresh_initialized to true
+                 // Hybla-only change: setting is_ssthresh_initialized to true
                 path_x->is_ssthresh_initialized = 1;
             }
 
-            
+            path_x->cwin = hybla_state->cwin;
             break;
-        case picoquic_congestion_notification_spurious_repeat:
+        case picoquic_congestion_notification_spurious_repeat:           
             if (!cnx->is_multipath_enabled) {
                 if (current_time - hybla_state->recovery_start < path_x->smoothed_rtt &&
                     hybla_state->recovery_sequence > picoquic_cc_get_ack_number(cnx, path_x)) {
@@ -322,16 +325,15 @@ static void picoquic_hybla_notify(
                     }
                 }
             }
-            path_x->cwin = hybla_state->cwin;
-            //path_x->is_ssthresh_initialized = 1;
 
+            path_x->cwin = hybla_state->cwin;
             break;
         case picoquic_congestion_notification_rtt_measurement:
             if (hybla_state->alg_state == picoquic_hybla_alg_slow_start && !path_x->is_ssthresh_initialized) {
 
                 update_rho(hybla_state, path_x);
 
-                uint64_t min_win = PICOQUIC_CWIN_INITIAL * hybla_state->rho;
+                uint64_t min_win = PICOQUIC_CWIN_INITIAL;
                 if (min_win > hybla_state->cwin) {
                     hybla_state->cwin = min_win;
                     path_x->cwin = hybla_state->cwin;
@@ -402,7 +404,7 @@ static void picoquic_hybla_notify(
         picoquic_update_pacing_rate(
             cnx,
             path_x,
-            (double)hybla_state->cwin / ((double)path_x->smoothed_rtt / 1000000),
+            ((double)hybla_state->cwin / ((double)path_x->smoothed_rtt / 1000000)) * 1.2,
             quantum
         );
     }
