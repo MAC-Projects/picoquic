@@ -407,7 +407,7 @@ static void picoquic_hybla_notify(
         picoquic_update_pacing_rate(
             cnx,
             path_x,
-            (double)hybla_state->cwin / ((double)path_x->smoothed_rtt / 1000000),
+            ((double)hybla_state->cwin / ((double)path_x->smoothed_rtt / 1000000)) * 1.2,
             quantum
         );
     }
